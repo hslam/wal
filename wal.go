@@ -17,6 +17,7 @@ var (
 	ErrShortBuffer = errors.New("short buffer")
 	ErrOutOfRange  = errors.New("out of range")
 	ErrZeroIndex   = errors.New("index can not be zero")
+	ErrNonEmptyLog = errors.New("non-empty log")
 	ErrOutOfOrder  = errors.New("out of order")
 )
 
@@ -427,6 +428,9 @@ func (l *Log) InitFirstIndex(index uint64) error {
 	defer l.mu.Unlock()
 	if index == 0 {
 		return ErrZeroIndex
+	}
+	if l.lastIndex-l.firstIndex >= 0 {
+		return ErrNonEmptyLog
 	}
 	l.initFirstIndex(index)
 	return nil
