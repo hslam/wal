@@ -279,8 +279,7 @@ func (l *Log) load() error {
 				if err := os.Rename(filePath, filepath.Join(l.path, name[:n+len(l.logSuffix)])); err != nil {
 					return err
 				}
-			}
-			if len(name) == n+len(l.logSuffix)+len(truncateSuffix) && strings.HasSuffix(name, truncateSuffix) {
+			} else if len(name) == n+len(l.logSuffix)+len(truncateSuffix) && strings.HasSuffix(name, truncateSuffix) {
 				truncate = true
 				if len(l.segments) > 0 && l.segments[len(l.segments)-1].offset == offset {
 					if err := os.Remove(l.segments[len(l.segments)-1].logPath); err != nil {
