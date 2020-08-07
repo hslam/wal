@@ -242,7 +242,7 @@ func (l *Log) load() error {
 		return err
 	}
 	truncate := false
-	err := filepath.Walk(l.path, func(path string, info os.FileInfo, err error) error {
+	err := filepath.Walk(l.path, func(filePath string, info os.FileInfo, err error) error {
 		name, n := info.Name(), l.nameLength
 		if len(name) < n+len(l.logSuffix) || info.IsDir() {
 			return nil
@@ -256,38 +256,41 @@ func (l *Log) load() error {
 		}
 		if len(name) == n+len(l.logSuffix) {
 			if truncate {
-				if err := os.Remove(filepath.Join(l.path, name)); err != nil {
+				if err := os.Remove(filePath); err != nil {
+					return err
+				}
+				if err := os.Remove(filepath.Join(l.path, name[:n]+l.indexSuffix)); err != nil {
 					return err
 				}
 				return nil
 			}
 		} else {
-			if len(name) == n+len(l.logSuffix)+len(cleanSuffix) {
-				if !strings.HasSuffix(name, cleanSuffix) {
-					return nil
-				}
+			if len(name) == n+len(l.logSuffix)+len(cleanSuffix) && strings.HasSuffix(name, cleanSuffix) {
 				for i := 0; i < len(l.segments); i++ {
 					if err := os.Remove(l.segments[i].logPath); err != nil {
 						return err
 					}
+					if err := os.Remove(l.segments[i].indexPath); err != nil {
+						return err
+					}
 				}
 				l.segments = []*segment{}
-				if err := os.Rename(filepath.Join(l.path, name), filepath.Join(l.path, name[:n+len(l.logSuffix)])); err != nil {
+				if err := os.Rename(filePath, filepath.Join(l.path, name[:n+len(l.logSuffix)])); err != nil {
 					return err
 				}
 			}
-			if len(name) == n+len(l.logSuffix)+len(truncateSuffix) {
-				if !strings.HasSuffix(name, truncateSuffix) {
-					return nil
-				}
+			if len(name) == n+len(l.logSuffix)+len(truncateSuffix) && strings.HasSuffix(name, truncateSuffix) {
 				truncate = true
 				if len(l.segments) > 0 && l.segments[len(l.segments)-1].offset == offset {
 					if err := os.Remove(l.segments[len(l.segments)-1].logPath); err != nil {
 						return err
 					}
+					if err := os.Remove(l.segments[len(l.segments)-1].indexPath); err != nil {
+						return err
+					}
 					l.segments = l.segments[:len(l.segments)-1]
 				}
-				if err := os.Rename(filepath.Join(l.path, name), filepath.Join(l.path, name[:n+len(l.logSuffix)])); err != nil {
+				if err := os.Rename(filePath, filepath.Join(l.path, name[:n+len(l.logSuffix)])); err != nil {
 					return err
 				}
 			}
@@ -383,7 +386,7 @@ func (l *Log) loadSegment(s *segment) (err error) {
 	return nil
 }
 
-func (l *Log) Write(index uint64, data []byte) error {
+func (l *Log) Write(index uint64, data []byte) (err error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	if l.closed {
@@ -392,7 +395,6 @@ func (l *Log) Write(index uint64, data []byte) error {
 	if index != l.lastIndex+1 {
 		return ErrOutOfOrder
 	}
-	var err error
 	end, err := l.lastSegment.logFile.Seek(0, os.SEEK_END)
 	if err != nil {
 		return err
@@ -461,8 +463,14 @@ func (l *Log) Close() (err error) {
 	if err = l.flush(); err != nil {
 		return err
 	}
+	return l.close()
+}
+
+func (l *Log) close() (err error) {
 	for i := 0; i < len(l.segments); i++ {
-		err = l.segments[i].close()
+		if err = l.segments[i].close(); err != nil {
+			return err
+		}
 	}
 	return
 }
@@ -618,7 +626,6 @@ func (l *Log) Truncate(index uint64) (err error) {
 	_, end := s.readIndex(index)
 	offset := int(start)
 	size := int(end - start)
-
 	if err = l.copy(s.logPath, truncateName, offset, size); err != nil {
 		return err
 	}
