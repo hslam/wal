@@ -384,6 +384,30 @@ func (l *Log) loadSegment(s *segment) (err error) {
 	return nil
 }
 
+func (l *Log) empty() (err error) {
+	if err = l.close(); err != nil {
+		return err
+	}
+	err = filepath.Walk(l.path, func(filePath string, info os.FileInfo, err error) error {
+		name, n := info.Name(), l.nameLength
+		if len(name) < n || info.IsDir() {
+			return nil
+		}
+		_, err = l.parseSegmentName(name[:n])
+		if err != nil {
+			return nil
+		}
+		if name[n:n+len(l.logSuffix)] != l.logSuffix && name[n:n+len(l.indexSuffix)] != l.indexSuffix {
+			return nil
+		}
+		if err := os.Remove(filePath); err != nil {
+			return err
+		}
+		return nil
+	})
+	return err
+}
+
 func (l *Log) Write(index uint64, data []byte) (err error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
