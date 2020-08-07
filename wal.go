@@ -398,6 +398,8 @@ func (l *Log) Write(index uint64, data []byte) (err error) {
 	} else if l.lastIndex == 0 {
 		l.firstIndex = index
 		l.lastIndex = index - 1
+	}
+	if len(l.segments) == 0 {
 		if err = l.appendSegment(); err != nil {
 			return err
 		}
