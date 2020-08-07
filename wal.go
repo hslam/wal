@@ -16,6 +16,7 @@ var (
 	ErrClosed      = errors.New("closed")
 	ErrShortBuffer = errors.New("short buffer")
 	ErrOutOfRange  = errors.New("out of range")
+	ErrZeroIndex   = errors.New("index can not be zero")
 	ErrOutOfOrder  = errors.New("out of order")
 )
 
@@ -308,13 +309,11 @@ func (l *Log) load() error {
 	if err != nil {
 		return err
 	}
-	if len(l.segments) == 0 {
-		l.firstIndex = 1
-		l.lastIndex = 0
-		return l.appendSegment()
+	if len(l.segments) > 0 {
+		l.firstIndex = l.segments[0].offset + 1
+		return l.resetLastSegment()
 	}
-	l.firstIndex = l.segments[0].offset + 1
-	return l.resetLastSegment()
+	return nil
 }
 
 func (l *Log) appendSegment() (err error) {
@@ -392,8 +391,17 @@ func (l *Log) Write(index uint64, data []byte) (err error) {
 	if l.closed {
 		return ErrClosed
 	}
-	if index != l.lastIndex+1 {
+	if index == 0 {
+		return ErrZeroIndex
+	}
+	if l.lastIndex > 0 && index != l.lastIndex+1 {
 		return ErrOutOfOrder
+	} else if l.lastIndex == 0 {
+		l.firstIndex = index
+		l.lastIndex = index - 1
+		if err = l.appendSegment(); err != nil {
+			return err
+		}
 	}
 	end, err := l.lastSegment.logFile.Seek(0, os.SEEK_END)
 	if err != nil {
