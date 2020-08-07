@@ -502,6 +502,18 @@ func (l *Log) searchSegmentIndex(index uint64) int {
 	return high
 }
 
+func (l *Log) IsExist(index uint64) (bool, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if err := l.checkIndex(index); err != nil {
+		if err == ErrClosed {
+			return false, err
+		}
+		return false, nil
+	}
+	return true, nil
+}
+
 func (l *Log) checkIndex(index uint64) error {
 	if l.closed {
 		return ErrClosed
