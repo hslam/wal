@@ -490,8 +490,8 @@ func (l *Log) FirstIndex() (index uint64, err error) {
 	if l.closed {
 		return 0, ErrClosed
 	}
-	if l.lastIndex == 0 {
-		return 0, nil
+	if l.lastIndex == l.firstIndex-1 {
+		return l.lastIndex, nil
 	}
 	return l.firstIndex, nil
 }
