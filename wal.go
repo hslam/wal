@@ -422,10 +422,14 @@ func (l *Log) empty() (err error) {
 	return err
 }
 
-func (l *Log) InitFirstIndex(index uint64) {
+func (l *Log) InitFirstIndex(index uint64) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if index == 0 {
+		return ErrZeroIndex
+	}
 	l.initFirstIndex(index)
+	return nil
 }
 
 func (l *Log) initFirstIndex(index uint64) {
