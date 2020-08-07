@@ -425,6 +425,19 @@ func (l *Log) empty() (err error) {
 	return err
 }
 
+func (l *Log) InitFirstIndex(index uint64) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.initFirstIndex(index)
+}
+
+func (l *Log) initFirstIndex(index uint64) {
+	l.firstIndex = index
+	l.lastIndex = index - 1
+	l.lastSegment = nil
+	l.segments = l.segments[:0]
+}
+
 func (l *Log) Write(index uint64, data []byte) (err error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
