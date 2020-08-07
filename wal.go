@@ -429,7 +429,7 @@ func (l *Log) InitFirstIndex(index uint64) error {
 	if index == 0 {
 		return ErrZeroIndex
 	}
-	if l.lastIndex-l.firstIndex >= 0 {
+	if l.lastIndex > 0 && l.lastIndex-l.firstIndex >= 0 {
 		return ErrNonEmptyLog
 	}
 	l.initFirstIndex(index)
