@@ -394,10 +394,7 @@ func (l *Log) reset() (err error) {
 	if err = l.empty(); err != nil {
 		return err
 	}
-	l.firstIndex = 1
-	l.lastIndex = 0
-	l.lastSegment = nil
-	l.segments = l.segments[:0]
+	l.initFirstIndex(1)
 	return nil
 }
 
