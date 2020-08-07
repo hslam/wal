@@ -384,6 +384,23 @@ func (l *Log) loadSegment(s *segment) (err error) {
 	return nil
 }
 
+func (l *Log) Reset() error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.reset()
+}
+
+func (l *Log) reset() (err error) {
+	if err = l.empty(); err != nil {
+		return err
+	}
+	l.firstIndex = 1
+	l.lastIndex = 0
+	l.lastSegment = nil
+	l.segments = l.segments[:0]
+	return nil
+}
+
 func (l *Log) empty() (err error) {
 	if err = l.close(); err != nil {
 		return err
