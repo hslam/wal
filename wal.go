@@ -93,7 +93,7 @@ func (s *segment) load() error {
 				return err
 			}
 		}
-		if s.indexMmap, err = mmap.Open(mmap.Fd(s.indexFile), mmap.Fsize(s.indexFile), mmap.READ|mmap.WRITE); err != nil {
+		if s.indexMmap, err = mmap.Open(mmap.Fd(s.indexFile), 0, mmap.Fsize(s.indexFile), mmap.READ|mmap.WRITE); err != nil {
 			return err
 		}
 	}
@@ -108,7 +108,7 @@ func (s *segment) load() error {
 		}
 	}
 	if int(size) != mmap.Fsize(s.logFile) {
-		m, err := mmap.Open(mmap.Fd(s.logFile), mmap.Fsize(s.logFile), mmap.READ)
+		m, err := mmap.Open(mmap.Fd(s.logFile), 0, mmap.Fsize(s.logFile), mmap.READ)
 		if err != nil {
 			return err
 		}
@@ -341,7 +341,7 @@ func (l *Log) appendSegment() (err error) {
 	if err = s.indexFile.Sync(); err != nil {
 		return err
 	}
-	if s.indexMmap, err = mmap.Open(mmap.Fd(s.indexFile), mmap.Fsize(s.indexFile), mmap.READ|mmap.WRITE); err != nil {
+	if s.indexMmap, err = mmap.Open(mmap.Fd(s.indexFile), 0, mmap.Fsize(s.indexFile), mmap.READ|mmap.WRITE); err != nil {
 		return err
 	}
 	return
@@ -722,7 +722,7 @@ func (l *Log) copy(srcName string, dstName string, offset, size int) (err error)
 		return err
 	}
 	var m []byte
-	if m, err = mmap.Open(mmap.Fd(srcFile), mmap.Fsize(srcFile), mmap.READ); err != nil {
+	if m, err = mmap.Open(mmap.Fd(srcFile), 0, mmap.Fsize(srcFile), mmap.READ); err != nil {
 		return err
 	}
 	tmpName := filepath.Join(l.path, "tmp")
@@ -736,7 +736,7 @@ func (l *Log) copy(srcName string, dstName string, offset, size int) (err error)
 		return err
 	}
 	var tmpMmap []byte
-	if tmpMmap, err = mmap.Open(mmap.Fd(tmpFile), mmap.Fsize(tmpFile), mmap.WRITE); err != nil {
+	if tmpMmap, err = mmap.Open(mmap.Fd(tmpFile), 0, mmap.Fsize(tmpFile), mmap.WRITE); err != nil {
 		return err
 	}
 	copy(tmpMmap, m[offset:offset+size])
