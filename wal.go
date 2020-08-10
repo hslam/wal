@@ -373,7 +373,7 @@ func (l *Log) closeLastSegment() (err error) {
 	if l.lastSegment != nil {
 		err = l.lastSegment.close()
 	}
-	return nil
+	return err
 }
 
 func (l *Log) loadSegment(s *segment) (err error) {
