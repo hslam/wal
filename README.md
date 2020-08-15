@@ -1,5 +1,5 @@
 # wal
-Write-Ahead Logging
+Package wal implements write-ahead logging.
 
 ## Get started
 
