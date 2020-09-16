@@ -1,5 +1,7 @@
 # wal
 [![GoDoc](https://godoc.org/github.com/hslam/wal?status.svg)](https://godoc.org/github.com/hslam/wal)
+[![Build Status](https://travis-ci.org/hslam/wal.svg?branch=master)](https://travis-ci.org/hslam/wal)
+[![Go Report Card](https://goreportcard.com/badge/github.com/hslam/wal?v=7e100)](https://goreportcard.com/report/github.com/hslam/wal)
 [![LICENSE](https://img.shields.io/github/license/hslam/wal.svg?style=flat-square)](https://github.com/hslam/wal/blob/master/LICENSE)
 
 Package wal implements write-ahead logging.
