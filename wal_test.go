@@ -38,7 +38,7 @@ func TestWal(t *testing.T) {
 	if err != ErrOutOfRange {
 		t.Error(err)
 	}
-	data, err = log.Read(6)
+	_, err = log.Read(6)
 	if err != nil {
 		t.Error(err)
 	}

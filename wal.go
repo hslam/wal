@@ -41,8 +41,8 @@ const (
 var (
 	// ErrClosed is returned when the log is closed.
 	ErrClosed = errors.New("closed")
-	// ErrShortBuffer is returned when the buffer is too short.
-	ErrShortBuffer = errors.New("short buffer")
+	// ErrUnexpectedSize is returned when the number of bytes is unexpected.
+	ErrUnexpectedSize = errors.New("unexpected size")
 	// ErrOutOfRange is returned when the index is out of range.
 	ErrOutOfRange = errors.New("out of range")
 	// ErrZeroIndex is returned because the index must be greater than zero.
@@ -689,13 +689,13 @@ func (l *Log) Read(index uint64) (data []byte, err error) {
 	if err != nil {
 		return nil, err
 	}
-	if len(entryData) == 0 {
-		return nil, ErrShortBuffer
+	if len(entryData) != n {
+		return nil, ErrUnexpectedSize
 	}
 	var size uint64
 	n = int(code.DecodeVarint(entryData, &size))
-	if uint64(len(entryData)-n) < size {
-		return nil, ErrShortBuffer
+	if uint64(len(entryData)-n) != size {
+		return nil, ErrUnexpectedSize
 	}
 	return entryData[n:], nil
 }
