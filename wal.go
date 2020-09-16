@@ -16,30 +16,44 @@ import (
 	"sync"
 )
 
-var (
-	ErrClosed      = errors.New("closed")
-	ErrShortBuffer = errors.New("short buffer")
-	ErrOutOfRange  = errors.New("out of range")
-	ErrZeroIndex   = errors.New("index can not be zero")
-	ErrNonEmptyLog = errors.New("non-empty log")
-	ErrOutOfOrder  = errors.New("out of order")
-)
-
 const (
-	DefaultSegmentSize    = 1024 * 1024 * 512
+	// DefaultSegmentSize is the default segment size.
+	DefaultSegmentSize = 1024 * 1024 * 512
+	// DefaultSegmentEntries is the default segment entries.
 	DefaultSegmentEntries = 1024 * 1024 * 8
-	DefaultWriteBuffer    = 1024 * 1024
-	DefaultEncodeBuffer   = 1024 * 64
-	DefaultBase           = 10
+	// DefaultWriteBufferSize is the default write buffer size.
+	DefaultWriteBufferSize = 1024 * 1024
+	// DefaultEncodeBufferSize is the default encode buffer size.
+	DefaultEncodeBufferSize = 1024 * 64
+	// DefaultBase is the default base.
+	DefaultBase = 10
 )
 
 const (
-	DefaultLogSuffix   = ".log"
+	// DefaultLogSuffix is the default log suffix.
+	DefaultLogSuffix = ".log"
+	// DefaultIndexSuffix is the default index suffix.
 	DefaultIndexSuffix = ".idx"
 	cleanSuffix        = ".clean"
 	truncateSuffix     = ".trunc"
 )
 
+var (
+	// ErrClosed is returned when the log is closed.
+	ErrClosed = errors.New("closed")
+	// ErrShortBuffer is returned when the buffer is too short.
+	ErrShortBuffer = errors.New("short buffer")
+	// ErrOutOfRange is returned when the index is out of range.
+	ErrOutOfRange = errors.New("out of range")
+	// ErrZeroIndex is returned because the index must be greater than zero.
+	ErrZeroIndex = errors.New("index can not be zero")
+	// ErrNonEmptyLog is the error returned by InitFirstIndex when the log is non-empty.
+	ErrNonEmptyLog = errors.New("non-empty log")
+	// ErrOutOfOrder is returned when the index is out of order. The index must be equal to LastIndex + 1
+	ErrOutOfOrder = errors.New("out of order")
+)
+
+// Log represents a write-ahead log.
 type Log struct {
 	mu             sync.Mutex
 	path           string
@@ -160,25 +174,34 @@ func (s *segment) close() (err error) {
 	return err
 }
 
+// Options represents options
 type Options struct {
-	SegmentSize    int
+	// SegmentSize is the segment size.
+	SegmentSize int
+	// SegmentEntries is the number of segment entries.
 	SegmentEntries int
-	EncodeBuffer   int
-	WriteBuffer    int
-	LogSuffix      string
-	IndexSuffix    string
-	Base           int
+	// EncodeBufferSize is the encode buffer size.
+	EncodeBufferSize int
+	// WriteBufferSize is the write buffer size.
+	WriteBufferSize int
+	// LogSuffix is the log suffix.
+	LogSuffix string
+	// IndexSuffix is the index suffix.
+	IndexSuffix string
+	// Base is the base.
+	Base int
 }
 
+// DefaultOptions returns default options.
 func DefaultOptions() *Options {
 	return &Options{
-		SegmentSize:    DefaultSegmentSize,
-		SegmentEntries: DefaultSegmentEntries,
-		EncodeBuffer:   DefaultEncodeBuffer,
-		WriteBuffer:    DefaultWriteBuffer,
-		LogSuffix:      DefaultLogSuffix,
-		IndexSuffix:    DefaultIndexSuffix,
-		Base:           DefaultBase,
+		SegmentSize:      DefaultSegmentSize,
+		SegmentEntries:   DefaultSegmentEntries,
+		EncodeBufferSize: DefaultEncodeBufferSize,
+		WriteBufferSize:  DefaultWriteBufferSize,
+		LogSuffix:        DefaultLogSuffix,
+		IndexSuffix:      DefaultIndexSuffix,
+		Base:             DefaultBase,
 	}
 }
 
@@ -189,11 +212,11 @@ func (opts *Options) check() error {
 	if opts.SegmentEntries < 1 {
 		opts.SegmentEntries = DefaultSegmentEntries
 	}
-	if opts.EncodeBuffer < 1 {
-		opts.EncodeBuffer = DefaultEncodeBuffer
+	if opts.EncodeBufferSize < 1 {
+		opts.EncodeBufferSize = DefaultEncodeBufferSize
 	}
-	if opts.WriteBuffer < 1 {
-		opts.WriteBuffer = DefaultWriteBuffer
+	if opts.WriteBufferSize < 1 {
+		opts.WriteBufferSize = DefaultWriteBufferSize
 	}
 	if len(opts.LogSuffix) < 1 {
 		opts.LogSuffix = DefaultLogSuffix
@@ -213,10 +236,12 @@ func (opts *Options) check() error {
 	return nil
 }
 
+// Open opens a write-ahead log.
 func Open(path string) (*Log, error) {
 	return OpenWithOptions(path, DefaultOptions())
 }
 
+// OpenWithOptions opens a write-ahead log with options.
 func OpenWithOptions(path string, opts *Options) (l *Log, err error) {
 	if opts == nil {
 		opts = DefaultOptions()
@@ -234,8 +259,8 @@ func OpenWithOptions(path string, opts *Options) (l *Log, err error) {
 		indexSuffix:    opts.IndexSuffix,
 		base:           opts.Base,
 		nameLength:     len(strconv.FormatUint(1<<64-1, opts.Base)),
-		encodeBuffer:   make([]byte, opts.EncodeBuffer),
-		writeBuffer:    make([]byte, 0, opts.WriteBuffer),
+		encodeBuffer:   make([]byte, opts.EncodeBufferSize),
+		writeBuffer:    make([]byte, 0, opts.WriteBufferSize),
 	}
 	if err = l.load(); err != nil {
 		return nil, err
@@ -389,6 +414,7 @@ func (l *Log) loadSegment(s *segment) (err error) {
 	return nil
 }
 
+// Reset discards all entries.
 func (l *Log) Reset() error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -427,6 +453,7 @@ func (l *Log) empty() (err error) {
 	return err
 }
 
+// InitFirstIndex sets the log first index.
 func (l *Log) InitFirstIndex(index uint64) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -447,6 +474,7 @@ func (l *Log) initFirstIndex(index uint64) {
 	l.segments = l.segments[:0]
 }
 
+// Write writes an entry.
 func (l *Log) Write(index uint64, data []byte) (err error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -502,6 +530,7 @@ func (l *Log) Write(index uint64, data []byte) (err error) {
 	return nil
 }
 
+// Flush writes buffered data to file.
 func (l *Log) Flush() error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -521,6 +550,9 @@ func (l *Log) flush() error {
 	return nil
 }
 
+// Sync commits the current contents of the file to stable storage.
+// Typically, this means flushing the file system's in-memory copy
+// of recently written data to disk.
 func (l *Log) Sync() error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -537,6 +569,7 @@ func (l *Log) sync() error {
 	return nil
 }
 
+// FlushAndSync writes buffered data to disk.
 func (l *Log) FlushAndSync() error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -559,6 +592,7 @@ func (l *Log) flushAndSync() error {
 	return nil
 }
 
+// Close closes the log.
 func (l *Log) Close() (err error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -581,6 +615,7 @@ func (l *Log) close() (err error) {
 	return
 }
 
+// FirstIndex returns the log first index.
 func (l *Log) FirstIndex() (index uint64, err error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -593,6 +628,7 @@ func (l *Log) FirstIndex() (index uint64, err error) {
 	return l.firstIndex, nil
 }
 
+// LastIndex returns the log last index.
 func (l *Log) LastIndex() (index uint64, err error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -616,6 +652,7 @@ func (l *Log) searchSegmentIndex(index uint64) int {
 	return high
 }
 
+// IsExist returns true when the index is in range.
 func (l *Log) IsExist(index uint64) (bool, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -638,6 +675,7 @@ func (l *Log) checkIndex(index uint64) error {
 	return nil
 }
 
+// Read returns an entry by index.
 func (l *Log) Read(index uint64) (data []byte, err error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -667,6 +705,7 @@ func (l *Log) Read(index uint64) (data []byte, err error) {
 	return entryData[n:], nil
 }
 
+// Clean cleans up the old entries before index.
 func (l *Log) Clean(index uint64) (err error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -714,6 +753,7 @@ func (l *Log) Clean(index uint64) (err error) {
 	return nil
 }
 
+// Truncate deletes the dirty entries after index.
 func (l *Log) Truncate(index uint64) (err error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
