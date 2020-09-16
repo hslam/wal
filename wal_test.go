@@ -70,6 +70,22 @@ func BenchmarkWalWrite(b *testing.B) {
 	os.RemoveAll(file)
 }
 
+func BenchmarkWalWriteNoSync(b *testing.B) {
+	file := "wal"
+	os.RemoveAll(file)
+	log, err := Open(file, nil)
+	if err != nil {
+		b.Error(err)
+	}
+	var index uint64
+	for i := 0; i < b.N; i++ {
+		index++
+		log.Write(index, []byte{0, 0, 1})
+		log.Flush()
+	}
+	os.RemoveAll(file)
+}
+
 func BenchmarkWalRead(b *testing.B) {
 	file := "wal"
 	os.RemoveAll(file)
