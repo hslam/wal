@@ -482,10 +482,9 @@ func (l *Log) Write(index uint64, data []byte) (err error) {
 	copy(l.encodeBuffer[n:], data)
 	entryData := l.encodeBuffer[:int(n)+len(data)]
 	if offset+len(l.writeBuffer)+len(entryData) > l.segmentSize || int(index-l.lastSegment.offset) > l.segmentEntries {
-		if _, err := l.lastSegment.logFile.Write(l.writeBuffer); err != nil {
+		if err := l.flushAndSync(); err != nil {
 			return err
 		}
-		l.writeBuffer = l.writeBuffer[:0]
 		if err := l.appendSegment(); err != nil {
 			return err
 		}
@@ -518,6 +517,41 @@ func (l *Log) flush() error {
 			return err
 		}
 		l.writeBuffer = l.writeBuffer[:0]
+	}
+	return nil
+}
+
+func (l *Log) Sync() error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.sync()
+}
+
+func (l *Log) sync() error {
+	if l.closed {
+		return ErrClosed
+	}
+	if err := l.lastSegment.logFile.Sync(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (l *Log) FlushAndSync() error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.flushAndSync()
+}
+
+func (l *Log) flushAndSync() error {
+	if l.closed {
+		return ErrClosed
+	}
+	if len(l.writeBuffer) > 0 {
+		if _, err := l.lastSegment.logFile.Write(l.writeBuffer); err != nil {
+			return err
+		}
+		l.writeBuffer = l.writeBuffer[:0]
 		if err := l.lastSegment.logFile.Sync(); err != nil {
 			return err
 		}
@@ -532,7 +566,7 @@ func (l *Log) Close() (err error) {
 		return nil
 	}
 	l.closed = true
-	if err = l.flush(); err != nil {
+	if err = l.flushAndSync(); err != nil {
 		return err
 	}
 	return l.close()
@@ -669,6 +703,7 @@ func (l *Log) Clean(index uint64) (err error) {
 		return err
 	}
 	s.logPath = name
+	s.indexPath = filepath.Join(l.path, l.indexName(index-1))
 	s.offset = index - 1
 	s.len = 0
 	l.segments = l.segments[segIndex:]
