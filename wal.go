@@ -474,7 +474,7 @@ func (l *Log) initFirstIndex(index uint64) {
 	l.segments = l.segments[:0]
 }
 
-// Write writes an entry.
+// Write writes an entry to buffer.
 func (l *Log) Write(index uint64, data []byte) (err error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -569,7 +569,7 @@ func (l *Log) sync() error {
 	return nil
 }
 
-// FlushAndSync writes buffered data to disk.
+// FlushAndSync writes buffered data to file and synchronizes to disk.
 func (l *Log) FlushAndSync() error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
