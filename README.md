@@ -1,4 +1,7 @@
 # wal
+[![GoDoc](https://godoc.org/github.com/hslam/wal?status.svg)](https://godoc.org/github.com/hslam/wal)
+[![LICENSE](https://img.shields.io/github/license/hslam/wal.svg?style=flat-square)](https://github.com/hslam/wal/blob/master/LICENSE)
+
 Package wal implements write-ahead logging.
 
 ## Feature
@@ -29,9 +32,9 @@ import (
 )
 
 func main() {
-	filepath := "wal"
-	os.RemoveAll(filepath)
-	log, err := wal.OpenWithOptions(filepath, &wal.Options{SegmentEntries: 3})
+	path := "wal"
+	os.RemoveAll(path)
+	log, err := wal.OpenWithOptions(path, &wal.Options{SegmentEntries: 3})
 	if err != nil {
 		panic(err)
 	}
