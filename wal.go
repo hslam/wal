@@ -236,13 +236,8 @@ func (opts *Options) check() error {
 	return nil
 }
 
-// Open opens a write-ahead log.
-func Open(path string) (*Log, error) {
-	return OpenWithOptions(path, DefaultOptions())
-}
-
-// OpenWithOptions opens a write-ahead log with options.
-func OpenWithOptions(path string, opts *Options) (l *Log, err error) {
+// Open opens a write-ahead log with options.
+func Open(path string, opts *Options) (l *Log, err error) {
 	if opts == nil {
 		opts = DefaultOptions()
 	} else {

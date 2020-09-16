@@ -8,10 +8,8 @@ import (
 func TestWal(t *testing.T) {
 	file := "wal"
 	os.RemoveAll(file)
-	var log *Log
-	var err error
 	var data []byte
-	log, err = OpenWithOptions(file, &Options{SegmentEntries: 3})
+	log, err := Open(file, &Options{SegmentEntries: 3})
 	if err != nil {
 		t.Error(err)
 	}
@@ -53,5 +51,35 @@ func TestWal(t *testing.T) {
 		t.Error(err)
 	}
 	log.Close()
+	os.RemoveAll(file)
+}
+
+func BenchmarkWalWrite(b *testing.B) {
+	file := "wal"
+	os.RemoveAll(file)
+	log, err := Open(file, nil)
+	if err != nil {
+		b.Error(err)
+	}
+	var index uint64
+	for i := 0; i < b.N; i++ {
+		index++
+		log.Write(index, []byte{0, 0, 1})
+		log.FlushAndSync()
+	}
+	os.RemoveAll(file)
+}
+
+func BenchmarkWalRead(b *testing.B) {
+	file := "wal"
+	os.RemoveAll(file)
+	log, err := Open(file, nil)
+	if err != nil {
+		b.Error(err)
+	}
+	log.Write(1, []byte{0, 0, 1})
+	for i := 0; i < b.N; i++ {
+		log.Read(1)
+	}
 	os.RemoveAll(file)
 }

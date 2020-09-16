@@ -34,7 +34,7 @@ import (
 func main() {
 	path := "wal"
 	os.RemoveAll(path)
-	log, err := wal.OpenWithOptions(path, &wal.Options{SegmentEntries: 3})
+	log, err := wal.Open(path, &wal.Options{SegmentEntries: 3})
 	if err != nil {
 		panic(err)
 	}
