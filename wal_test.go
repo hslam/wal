@@ -80,8 +80,14 @@ func BenchmarkWalWriteNoSync(b *testing.B) {
 	var index uint64
 	for i := 0; i < b.N; i++ {
 		index++
-		log.Write(index, []byte{0, 0, 1})
-		log.Flush()
+		err = log.Write(index, []byte{0, 0, 1})
+		if err != nil {
+			b.Error(err)
+		}
+		err = log.Flush()
+		if err != nil {
+			b.Error(err)
+		}
 	}
 	os.RemoveAll(file)
 }
@@ -94,8 +100,15 @@ func BenchmarkWalRead(b *testing.B) {
 		b.Error(err)
 	}
 	log.Write(1, []byte{0, 0, 1})
+	log.FlushAndSync()
 	for i := 0; i < b.N; i++ {
-		log.Read(1)
+		data, err := log.Read(1)
+		if err != nil {
+			b.Error(err)
+		}
+		if data[2] != 1 {
+			b.Error(data)
+		}
 	}
 	os.RemoveAll(file)
 }
