@@ -51,6 +51,8 @@ var (
 	ErrNonEmptyLog = errors.New("non-empty log")
 	// ErrOutOfOrder is returned when the index is out of order. The index must be equal to LastIndex + 1
 	ErrOutOfOrder = errors.New("out of order")
+	// ErrBase is returned when base = 1 or base > 36
+	ErrBase = errors.New("2 <= base <= 36")
 )
 
 // Log represents a write-ahead log.
@@ -228,9 +230,9 @@ func (opts *Options) check() error {
 		opts.Base = DefaultBase
 	} else {
 		if opts.Base < 2 {
-			opts.Base = 2
+			return ErrBase
 		} else if opts.Base > 36 {
-			opts.Base = 36
+			return ErrBase
 		}
 	}
 	return nil
@@ -425,6 +427,9 @@ func (l *Log) reset() (err error) {
 }
 
 func (l *Log) empty() (err error) {
+	if l.closed {
+		return ErrClosed
+	}
 	if err = l.close(); err != nil {
 		return err
 	}
@@ -591,13 +596,13 @@ func (l *Log) flushAndSync() error {
 func (l *Log) Close() (err error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if err = l.flushAndSync(); err != nil {
+		return err
+	}
 	if l.closed {
 		return nil
 	}
 	l.closed = true
-	if err = l.flushAndSync(); err != nil {
-		return err
-	}
 	return l.close()
 }
 
