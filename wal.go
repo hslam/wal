@@ -51,7 +51,7 @@ var (
 	ErrNonEmptyLog = errors.New("non-empty log")
 	// ErrOutOfOrder is returned when the index is out of order. The index must be equal to LastIndex + 1
 	ErrOutOfOrder = errors.New("out of order")
-	// ErrBase is returned when base = 1 or base > 36
+	// ErrBase is returned when base < 2 or base > 36
 	ErrBase = errors.New("2 <= base <= 36")
 )
 
