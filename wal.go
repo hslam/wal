@@ -722,7 +722,7 @@ func (l *Log) Clean(index uint64) (err error) {
 	}
 	cleanName := filepath.Join(l.path, l.logName(index-1)+cleanSuffix)
 	start, _ := s.readIndex(index)
-	_, end := s.readIndex(s.len)
+	_, end := s.readIndex(s.offset + s.len)
 	offset := int(start)
 	size := int(end - start)
 	if err = l.copy(s.logPath, cleanName, offset, size); err != nil {
