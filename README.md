@@ -1,5 +1,5 @@
 # wal
-[![GoDoc](https://godoc.org/github.com/hslam/wal?status.svg)](https://godoc.org/github.com/hslam/wal)
+[![PkgGoDev](https://pkg.go.dev/badge/github.com/hslam/wal)](https://pkg.go.dev/github.com/hslam/wal)
 [![Build Status](https://travis-ci.org/hslam/wal.svg?branch=master)](https://travis-ci.org/hslam/wal)
 [![Go Report Card](https://goreportcard.com/badge/github.com/hslam/wal?v=7e100)](https://goreportcard.com/report/github.com/hslam/wal)
 [![LICENSE](https://img.shields.io/github/license/hslam/wal.svg?style=flat-square)](https://github.com/hslam/wal/blob/master/LICENSE)
@@ -65,7 +65,7 @@ Hello World
 This package is licensed under a MIT license (Copyright (c) 2020 Meng Huang)
 
 
-### Authors
+### Author
 wal was written by Meng Huang.
 
 
