@@ -24,7 +24,7 @@ import "github.com/hslam/wal"
 ```
 ### Usage
 #### Example
-```
+```go
 package main
 
 import (
