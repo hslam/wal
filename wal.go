@@ -563,8 +563,10 @@ func (l *Log) sync() error {
 	if l.closed {
 		return ErrClosed
 	}
-	if err := l.lastSegment.logFile.Sync(); err != nil {
-		return err
+	if l.lastSegment != nil {
+		if err := l.lastSegment.logFile.Sync(); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -586,8 +588,10 @@ func (l *Log) flushAndSync() error {
 		}
 		l.writeBuffer = l.writeBuffer[:0]
 	}
-	if err := l.lastSegment.logFile.Sync(); err != nil {
-		return err
+	if l.lastSegment != nil {
+		if err := l.lastSegment.logFile.Sync(); err != nil {
+			return err
+		}
 	}
 	return nil
 }
