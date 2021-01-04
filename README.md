@@ -7,10 +7,10 @@
 Package wal implements write-ahead logging.
 
 ## Feature
-* Low Memory Usage
+* Low memory usage
 * Segment
-* Batch Write
-* Clean / Truncate / Reset
+* Batch writes
+* Clean/Truncate/Reset
 
 ## Get started
 

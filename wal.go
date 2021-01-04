@@ -585,9 +585,9 @@ func (l *Log) flushAndSync() error {
 			return err
 		}
 		l.writeBuffer = l.writeBuffer[:0]
-		if err := l.lastSegment.logFile.Sync(); err != nil {
-			return err
-		}
+	}
+	if err := l.lastSegment.logFile.Sync(); err != nil {
+		return err
 	}
 	return nil
 }
