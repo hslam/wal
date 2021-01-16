@@ -434,6 +434,9 @@ func (l *Log) empty() (err error) {
 		return err
 	}
 	err = filepath.Walk(l.path, func(filePath string, info os.FileInfo, err error) error {
+		if info == nil || err != nil {
+			return nil
+		}
 		name, n := info.Name(), l.nameLength
 		if len(name) < n || info.IsDir() {
 			return nil
