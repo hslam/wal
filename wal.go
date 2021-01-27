@@ -36,6 +36,7 @@ const (
 	DefaultIndexSuffix = ".idx"
 	cleanSuffix        = ".clean"
 	truncateSuffix     = ".trunc"
+	tmpfile            = "wal.tmp"
 )
 
 var (
@@ -55,8 +56,8 @@ var (
 	ErrBase = errors.New("2 <= base <= 36")
 )
 
-// Log represents a write-ahead log.
-type Log struct {
+// WAL represents a write-ahead log.
+type WAL struct {
 	mu             sync.Mutex
 	path           string
 	segmentSize    int
@@ -239,15 +240,16 @@ func (opts *Options) check() error {
 }
 
 // Open opens a write-ahead log with options.
-func Open(path string, opts *Options) (l *Log, err error) {
-	if opts == nil {
-		opts = DefaultOptions()
-	} else {
-		if err = opts.check(); err != nil {
-			return nil, err
+func Open(path string, opts *Options) (w *WAL, err error) {
+	if opts != nil {
+		err = opts.check()
+		if err != nil {
+			return
 		}
+	} else {
+		opts = DefaultOptions()
 	}
-	l = &Log{
+	w = &WAL{
 		path:           path,
 		segmentSize:    opts.SegmentSize,
 		segmentEntries: opts.SegmentEntries,
@@ -259,109 +261,116 @@ func Open(path string, opts *Options) (l *Log, err error) {
 		encodeBuffer:   make([]byte, opts.EncodeBufferSize),
 		writeBuffer:    make([]byte, 0, opts.WriteBufferSize),
 	}
-	if err = l.load(); err != nil {
-		return nil, err
+	err = w.load()
+	if err != nil {
+		w = nil
 	}
-	return l, nil
+	return
 }
 
-func (l *Log) load() error {
-	if err := os.MkdirAll(l.path, 0777); err != nil {
-		return err
+func (w *WAL) load() (err error) {
+	err = os.MkdirAll(w.path, 0744)
+	if err != nil {
+		return
+	}
+	tmpName := filepath.Join(w.path, tmpfile)
+	_, err = os.Stat(tmpName)
+	if !os.IsNotExist(err) {
+		os.Remove(tmpName)
 	}
 	truncate := false
-	err := filepath.Walk(l.path, func(filePath string, info os.FileInfo, err error) error {
-		name, n := info.Name(), l.nameLength
-		if len(name) < n+len(l.logSuffix) || info.IsDir() {
+	err = filepath.Walk(w.path, func(filePath string, info os.FileInfo, err error) error {
+		name, n := info.Name(), w.nameLength
+		if len(name) < n+len(w.logSuffix) || info.IsDir() {
 			return nil
 		}
-		if name[n:n+len(l.logSuffix)] != l.logSuffix {
+		if name[n:n+len(w.logSuffix)] != w.logSuffix {
 			return nil
 		}
-		offset, err := l.parseSegmentName(name[:n])
+		offset, err := w.parseSegmentName(name[:n])
 		if err != nil {
 			return nil
 		}
-		if len(name) == n+len(l.logSuffix) {
+		if len(name) == n+len(w.logSuffix) {
 			if truncate {
 				if err := os.Remove(filePath); err != nil {
 					return err
 				}
-				if err := os.Remove(filepath.Join(l.path, name[:n]+l.indexSuffix)); err != nil {
+				if err := os.Remove(filepath.Join(w.path, name[:n]+w.indexSuffix)); err != nil {
 					return err
 				}
 				return nil
 			}
 		} else {
-			if len(name) == n+len(l.logSuffix)+len(cleanSuffix) && strings.HasSuffix(name, cleanSuffix) {
-				for i := 0; i < len(l.segments); i++ {
-					if err := os.Remove(l.segments[i].logPath); err != nil {
+			if len(name) == n+len(w.logSuffix)+len(cleanSuffix) && strings.HasSuffix(name, cleanSuffix) {
+				for i := 0; i < len(w.segments); i++ {
+					if err := os.Remove(w.segments[i].logPath); err != nil {
 						return err
 					}
-					if err := os.Remove(l.segments[i].indexPath); err != nil {
+					if err := os.Remove(w.segments[i].indexPath); err != nil {
 						return err
 					}
 				}
-				l.segments = []*segment{}
-				if err := os.Rename(filePath, filepath.Join(l.path, name[:n+len(l.logSuffix)])); err != nil {
+				w.segments = []*segment{}
+				if err := os.Rename(filePath, filepath.Join(w.path, name[:n+len(w.logSuffix)])); err != nil {
 					return err
 				}
-			} else if len(name) == n+len(l.logSuffix)+len(truncateSuffix) && strings.HasSuffix(name, truncateSuffix) {
+			} else if len(name) == n+len(w.logSuffix)+len(truncateSuffix) && strings.HasSuffix(name, truncateSuffix) {
 				truncate = true
-				if len(l.segments) > 0 && l.segments[len(l.segments)-1].offset == offset {
-					if err := os.Remove(l.segments[len(l.segments)-1].logPath); err != nil {
+				if len(w.segments) > 0 && w.segments[len(w.segments)-1].offset == offset {
+					if err := os.Remove(w.segments[len(w.segments)-1].logPath); err != nil {
 						return err
 					}
-					if err := os.Remove(l.segments[len(l.segments)-1].indexPath); err != nil {
+					if err := os.Remove(w.segments[len(w.segments)-1].indexPath); err != nil {
 						return err
 					}
-					l.segments = l.segments[:len(l.segments)-1]
+					w.segments = w.segments[:len(w.segments)-1]
 				}
-				if err := os.Rename(filePath, filepath.Join(l.path, name[:n+len(l.logSuffix)])); err != nil {
+				if err := os.Rename(filePath, filepath.Join(w.path, name[:n+len(w.logSuffix)])); err != nil {
 					return err
 				}
 			}
-			name = name[:n+len(l.logSuffix)]
+			name = name[:n+len(w.logSuffix)]
 		}
-		l.segments = append(l.segments, &segment{
+		w.segments = append(w.segments, &segment{
 			offset:      offset,
-			logPath:     filepath.Join(l.path, name),
-			indexPath:   filepath.Join(l.path, name[:n]+l.indexSuffix),
+			logPath:     filepath.Join(w.path, name),
+			indexPath:   filepath.Join(w.path, name[:n]+w.indexSuffix),
 			indexBuffer: make([]byte, 8),
-			indexSpace:  l.indexSpace,
+			indexSpace:  w.indexSpace,
 		})
 		return nil
 	})
 	if err != nil {
 		return err
 	}
-	if len(l.segments) > 0 {
-		l.firstIndex = l.segments[0].offset + 1
-		return l.resetLastSegment()
+	if len(w.segments) > 0 {
+		w.firstIndex = w.segments[0].offset + 1
+		return w.resetLastSegment()
 	}
 	return nil
 }
 
-func (l *Log) appendSegment() (err error) {
-	if err = l.closeLastSegment(); err != nil {
+func (w *WAL) appendSegment() (err error) {
+	if err = w.closeLastSegment(); err != nil {
 		return err
 	}
 	s := &segment{
-		offset:      l.lastIndex,
-		logPath:     filepath.Join(l.path, l.logName(l.lastIndex)),
-		indexPath:   filepath.Join(l.path, l.indexName(l.lastIndex)),
+		offset:      w.lastIndex,
+		logPath:     filepath.Join(w.path, w.logName(w.lastIndex)),
+		indexPath:   filepath.Join(w.path, w.indexName(w.lastIndex)),
 		indexBuffer: make([]byte, 8),
-		indexSpace:  l.indexSpace,
+		indexSpace:  w.indexSpace,
 	}
-	l.segments = append(l.segments, s)
-	l.lastSegment = s
+	w.segments = append(w.segments, s)
+	w.lastSegment = s
 	if s.logFile, err = os.Create(s.logPath); err != nil {
 		return err
 	}
 	if s.indexFile, err = os.Create(s.indexPath); err != nil {
 		return err
 	}
-	if err = s.indexFile.Truncate(int64(l.indexSpace)); err != nil {
+	if err = s.indexFile.Truncate(int64(w.indexSpace)); err != nil {
 		return err
 	}
 	if err = s.indexFile.Sync(); err != nil {
@@ -373,36 +382,36 @@ func (l *Log) appendSegment() (err error) {
 	return
 }
 
-func (l *Log) resetLastSegment() (err error) {
-	if err = l.closeLastSegment(); err != nil {
+func (w *WAL) resetLastSegment() (err error) {
+	if err = w.closeLastSegment(); err != nil {
 		return err
 	}
-	lastSegment := l.segments[len(l.segments)-1]
-	l.lastSegment = lastSegment
+	lastSegment := w.segments[len(w.segments)-1]
+	w.lastSegment = lastSegment
 	if lastSegment.logFile, err = os.OpenFile(lastSegment.logPath, os.O_RDWR, 0666); err != nil {
 		return err
 	}
 	if n, err := lastSegment.logFile.Seek(0, os.SEEK_END); err != nil {
 		return err
 	} else if n <= 0 {
-		l.lastIndex = lastSegment.offset
+		w.lastIndex = lastSegment.offset
 		return nil
 	}
 	if err := lastSegment.load(); err != nil {
 		return err
 	}
-	l.lastIndex = lastSegment.offset + uint64(lastSegment.len)
+	w.lastIndex = lastSegment.offset + uint64(lastSegment.len)
 	return nil
 }
 
-func (l *Log) closeLastSegment() (err error) {
-	if l.lastSegment != nil {
-		err = l.lastSegment.close()
+func (w *WAL) closeLastSegment() (err error) {
+	if w.lastSegment != nil {
+		err = w.lastSegment.close()
 	}
 	return err
 }
 
-func (l *Log) loadSegment(s *segment) (err error) {
+func (w *WAL) loadSegment(s *segment) (err error) {
 	if s.len == 0 {
 		if err := s.load(); err != nil {
 			return err
@@ -412,40 +421,40 @@ func (l *Log) loadSegment(s *segment) (err error) {
 }
 
 // Reset discards all entries.
-func (l *Log) Reset() error {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	return l.reset()
+func (w *WAL) Reset() error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.reset()
 }
 
-func (l *Log) reset() (err error) {
-	if err = l.empty(); err != nil {
+func (w *WAL) reset() (err error) {
+	if err = w.empty(); err != nil {
 		return err
 	}
-	l.initFirstIndex(1)
+	w.initFirstIndex(1)
 	return nil
 }
 
-func (l *Log) empty() (err error) {
-	if l.closed {
+func (w *WAL) empty() (err error) {
+	if w.closed {
 		return ErrClosed
 	}
-	if err = l.close(); err != nil {
+	if err = w.close(); err != nil {
 		return err
 	}
-	err = filepath.Walk(l.path, func(filePath string, info os.FileInfo, err error) error {
+	err = filepath.Walk(w.path, func(filePath string, info os.FileInfo, err error) error {
 		if info == nil || err != nil {
 			return nil
 		}
-		name, n := info.Name(), l.nameLength
+		name, n := info.Name(), w.nameLength
 		if len(name) < n || info.IsDir() {
 			return nil
 		}
-		_, err = l.parseSegmentName(name[:n])
+		_, err = w.parseSegmentName(name[:n])
 		if err != nil {
 			return nil
 		}
-		if name[n:n+len(l.logSuffix)] != l.logSuffix && name[n:n+len(l.indexSuffix)] != l.indexSuffix {
+		if name[n:n+len(w.logSuffix)] != w.logSuffix && name[n:n+len(w.indexSuffix)] != w.indexSuffix {
 			return nil
 		}
 		if err := os.Remove(filePath); err != nil {
@@ -456,99 +465,99 @@ func (l *Log) empty() (err error) {
 	return err
 }
 
-// InitFirstIndex sets the log first index.
-func (l *Log) InitFirstIndex(index uint64) error {
-	l.mu.Lock()
-	defer l.mu.Unlock()
+// InitFirstIndex sets the write-ahead log first index.
+func (w *WAL) InitFirstIndex(index uint64) error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
 	if index == 0 {
 		return ErrZeroIndex
 	}
-	if l.lastIndex > 0 && l.lastIndex-l.firstIndex >= 0 {
+	if w.lastIndex > 0 && w.lastIndex-w.firstIndex >= 0 {
 		return ErrNonEmptyLog
 	}
-	l.initFirstIndex(index)
+	w.initFirstIndex(index)
 	return nil
 }
 
-func (l *Log) initFirstIndex(index uint64) {
-	l.firstIndex = index
-	l.lastIndex = index - 1
-	l.lastSegment = nil
-	l.segments = l.segments[:0]
+func (w *WAL) initFirstIndex(index uint64) {
+	w.firstIndex = index
+	w.lastIndex = index - 1
+	w.lastSegment = nil
+	w.segments = w.segments[:0]
 }
 
 // Write writes an entry to buffer.
-func (l *Log) Write(index uint64, data []byte) (err error) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	if l.closed {
+func (w *WAL) Write(index uint64, data []byte) (err error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.closed {
 		return ErrClosed
 	}
 	if index == 0 {
 		return ErrZeroIndex
 	}
-	if l.lastIndex > 0 && index != l.lastIndex+1 {
+	if w.lastIndex > 0 && index != w.lastIndex+1 {
 		return ErrOutOfOrder
-	} else if l.lastIndex == 0 {
-		l.firstIndex = index
-		l.lastIndex = index - 1
+	} else if w.lastIndex == 0 {
+		w.firstIndex = index
+		w.lastIndex = index - 1
 	}
-	if len(l.segments) == 0 {
-		if err = l.appendSegment(); err != nil {
+	if len(w.segments) == 0 {
+		if err = w.appendSegment(); err != nil {
 			return err
 		}
 	}
-	end, err := l.lastSegment.logFile.Seek(0, os.SEEK_END)
+	end, err := w.lastSegment.logFile.Seek(0, os.SEEK_END)
 	if err != nil {
 		return err
 	}
 	offset := int(end)
 	size := 10 + len(data)
-	if cap(l.encodeBuffer) >= size {
-		l.encodeBuffer = l.encodeBuffer[:size]
+	if cap(w.encodeBuffer) >= size {
+		w.encodeBuffer = w.encodeBuffer[:size]
 	} else {
-		l.encodeBuffer = make([]byte, size)
+		w.encodeBuffer = make([]byte, size)
 	}
-	n := code.EncodeVarint(l.encodeBuffer, uint64(len(data)))
-	copy(l.encodeBuffer[n:], data)
-	entryData := l.encodeBuffer[:int(n)+len(data)]
-	if offset+len(l.writeBuffer)+len(entryData) > l.segmentSize || int(index-l.lastSegment.offset) > l.segmentEntries {
-		if err := l.flushAndSync(); err != nil {
+	n := code.EncodeVarint(w.encodeBuffer, uint64(len(data)))
+	copy(w.encodeBuffer[n:], data)
+	entryData := w.encodeBuffer[:int(n)+len(data)]
+	if offset+len(w.writeBuffer)+len(entryData) > w.segmentSize || int(index-w.lastSegment.offset) > w.segmentEntries {
+		if err := w.flushAndSync(); err != nil {
 			return err
 		}
-		if err := l.appendSegment(); err != nil {
+		if err := w.appendSegment(); err != nil {
 			return err
 		}
-		l.lastSegment = l.segments[len(l.segments)-1]
+		w.lastSegment = w.segments[len(w.segments)-1]
 		offset = 0
 	}
-	entries := index - l.lastSegment.offset
-	code.EncodeUint64(l.lastSegment.indexBuffer, uint64(entries))
-	copy(l.lastSegment.indexMmap, l.lastSegment.indexBuffer)
-	code.EncodeUint64(l.lastSegment.indexBuffer, uint64(offset+len(l.writeBuffer)+len(entryData)))
-	copy(l.lastSegment.indexMmap[entries*8:entries*8+8], l.lastSegment.indexBuffer)
-	l.lastSegment.len = entries
-	l.writeBuffer = append(l.writeBuffer, entryData...)
-	l.lastIndex = index
+	entries := index - w.lastSegment.offset
+	code.EncodeUint64(w.lastSegment.indexBuffer, uint64(entries))
+	copy(w.lastSegment.indexMmap, w.lastSegment.indexBuffer)
+	code.EncodeUint64(w.lastSegment.indexBuffer, uint64(offset+len(w.writeBuffer)+len(entryData)))
+	copy(w.lastSegment.indexMmap[entries*8:entries*8+8], w.lastSegment.indexBuffer)
+	w.lastSegment.len = entries
+	w.writeBuffer = append(w.writeBuffer, entryData...)
+	w.lastIndex = index
 	return nil
 }
 
 // Flush writes buffered data to file.
-func (l *Log) Flush() error {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	return l.flush()
+func (w *WAL) Flush() error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.flush()
 }
 
-func (l *Log) flush() error {
-	if l.closed {
+func (w *WAL) flush() error {
+	if w.closed {
 		return ErrClosed
 	}
-	if len(l.writeBuffer) > 0 {
-		if _, err := l.lastSegment.logFile.Write(l.writeBuffer); err != nil {
+	if len(w.writeBuffer) > 0 {
+		if _, err := w.lastSegment.logFile.Write(w.writeBuffer); err != nil {
 			return err
 		}
-		l.writeBuffer = l.writeBuffer[:0]
+		w.writeBuffer = w.writeBuffer[:0]
 	}
 	return nil
 }
@@ -556,18 +565,18 @@ func (l *Log) flush() error {
 // Sync commits the current contents of the file to stable storage.
 // Typically, this means flushing the file system's in-memory copy
 // of recently written data to disk.
-func (l *Log) Sync() error {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	return l.sync()
+func (w *WAL) Sync() error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.sync()
 }
 
-func (l *Log) sync() error {
-	if l.closed {
+func (w *WAL) sync() error {
+	if w.closed {
 		return ErrClosed
 	}
-	if l.lastSegment != nil {
-		if err := l.lastSegment.logFile.Sync(); err != nil {
+	if w.lastSegment != nil {
+		if err := w.lastSegment.logFile.Sync(); err != nil {
 			return err
 		}
 	}
@@ -575,82 +584,82 @@ func (l *Log) sync() error {
 }
 
 // FlushAndSync writes buffered data to file and synchronizes to disk.
-func (l *Log) FlushAndSync() error {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	return l.flushAndSync()
+func (w *WAL) FlushAndSync() error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.flushAndSync()
 }
 
-func (l *Log) flushAndSync() error {
-	if l.closed {
+func (w *WAL) flushAndSync() error {
+	if w.closed {
 		return ErrClosed
 	}
-	if len(l.writeBuffer) > 0 {
-		if _, err := l.lastSegment.logFile.Write(l.writeBuffer); err != nil {
+	if len(w.writeBuffer) > 0 {
+		if _, err := w.lastSegment.logFile.Write(w.writeBuffer); err != nil {
 			return err
 		}
-		l.writeBuffer = l.writeBuffer[:0]
+		w.writeBuffer = w.writeBuffer[:0]
 	}
-	if l.lastSegment != nil {
-		if err := l.lastSegment.logFile.Sync(); err != nil {
+	if w.lastSegment != nil {
+		if err := w.lastSegment.logFile.Sync(); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-// Close closes the log.
-func (l *Log) Close() (err error) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	if err = l.flushAndSync(); err != nil {
+// Close closes the write-ahead log.
+func (w *WAL) Close() (err error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if err = w.flushAndSync(); err != nil {
 		return err
 	}
-	if l.closed {
+	if w.closed {
 		return nil
 	}
-	l.closed = true
-	return l.close()
+	w.closed = true
+	return w.close()
 }
 
-func (l *Log) close() (err error) {
-	for i := 0; i < len(l.segments); i++ {
-		if err = l.segments[i].close(); err != nil {
+func (w *WAL) close() (err error) {
+	for i := 0; i < len(w.segments); i++ {
+		if err = w.segments[i].close(); err != nil {
 			return err
 		}
 	}
 	return
 }
 
-// FirstIndex returns the log first index.
-func (l *Log) FirstIndex() (index uint64, err error) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	if l.closed {
+// FirstIndex returns the write-ahead log first index.
+func (w *WAL) FirstIndex() (index uint64, err error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.closed {
 		return 0, ErrClosed
 	}
-	if l.lastIndex == l.firstIndex-1 {
-		return l.lastIndex, nil
+	if w.lastIndex == w.firstIndex-1 {
+		return w.lastIndex, nil
 	}
-	return l.firstIndex, nil
+	return w.firstIndex, nil
 }
 
-// LastIndex returns the log last index.
-func (l *Log) LastIndex() (index uint64, err error) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	if l.closed {
+// LastIndex returns the write-ahead log last index.
+func (w *WAL) LastIndex() (index uint64, err error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.closed {
 		return 0, ErrClosed
 	}
-	return l.lastIndex, nil
+	return w.lastIndex, nil
 }
 
-func (l *Log) searchSegmentIndex(index uint64) int {
+func (w *WAL) searchSegmentIndex(index uint64) int {
 	low := 0
-	high := len(l.segments) - 1
+	high := len(w.segments) - 1
 	for low <= high {
 		mid := (low + high) / 2
-		if index > l.segments[mid].offset {
+		if index > w.segments[mid].offset {
 			low = mid + 1
 		} else {
 			high = mid - 1
@@ -660,10 +669,10 @@ func (l *Log) searchSegmentIndex(index uint64) int {
 }
 
 // IsExist returns true when the index is in range.
-func (l *Log) IsExist(index uint64) (bool, error) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	if err := l.checkIndex(index); err != nil {
+func (w *WAL) IsExist(index uint64) (bool, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if err := w.checkIndex(index); err != nil {
 		if err == ErrClosed {
 			return false, err
 		}
@@ -672,26 +681,26 @@ func (l *Log) IsExist(index uint64) (bool, error) {
 	return true, nil
 }
 
-func (l *Log) checkIndex(index uint64) error {
-	if l.closed {
+func (w *WAL) checkIndex(index uint64) error {
+	if w.closed {
 		return ErrClosed
 	}
-	if index == 0 || l.lastIndex == 0 || index < l.firstIndex || index > l.lastIndex {
+	if index == 0 || w.lastIndex == 0 || index < w.firstIndex || index > w.lastIndex {
 		return ErrOutOfRange
 	}
 	return nil
 }
 
 // Read returns an entry by index.
-func (l *Log) Read(index uint64) (data []byte, err error) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	if err := l.checkIndex(index); err != nil {
+func (w *WAL) Read(index uint64) (data []byte, err error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if err := w.checkIndex(index); err != nil {
 		return nil, err
 	}
-	segIndex := l.searchSegmentIndex(index)
-	s := l.segments[segIndex]
-	if err = l.loadSegment(s); err != nil {
+	segIndex := w.searchSegmentIndex(index)
+	s := w.segments[segIndex]
+	if err = w.loadSegment(s); err != nil {
 		return nil, err
 	}
 	var start, end = s.readIndex(index)
@@ -713,96 +722,96 @@ func (l *Log) Read(index uint64) (data []byte, err error) {
 }
 
 // Clean cleans up the old entries before index.
-func (l *Log) Clean(index uint64) (err error) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	if index == l.firstIndex {
+func (w *WAL) Clean(index uint64) (err error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if index == w.firstIndex {
 		return nil
 	}
-	if err := l.checkIndex(index); err != nil {
+	if err := w.checkIndex(index); err != nil {
 		return err
 	}
-	segIndex := l.searchSegmentIndex(index)
-	s := l.segments[segIndex]
-	if err = l.loadSegment(s); err != nil {
+	segIndex := w.searchSegmentIndex(index)
+	s := w.segments[segIndex]
+	if err = w.loadSegment(s); err != nil {
 		return err
 	}
-	cleanName := filepath.Join(l.path, l.logName(index-1)+cleanSuffix)
+	cleanName := filepath.Join(w.path, w.logName(index-1)+cleanSuffix)
 	start, _ := s.readIndex(index)
 	_, end := s.readIndex(s.offset + s.len)
 	offset := int(start)
 	size := int(end - start)
-	if err = l.copy(s.logPath, cleanName, offset, size); err != nil {
+	if err = w.copy(s.logPath, cleanName, offset, size); err != nil {
 		return err
 	}
 	for i := 0; i <= segIndex; i++ {
-		l.segments[i].close()
-		if err = os.Remove(l.segments[i].logPath); err != nil {
+		w.segments[i].close()
+		if err = os.Remove(w.segments[i].logPath); err != nil {
 			return err
 		}
-		if err = os.Remove(l.segments[i].indexPath); err != nil {
+		if err = os.Remove(w.segments[i].indexPath); err != nil {
 			return err
 		}
 	}
-	name := filepath.Join(l.path, l.logName(index-1))
+	name := filepath.Join(w.path, w.logName(index-1))
 	if err = os.Rename(cleanName, name); err != nil {
 		return err
 	}
 	s.logPath = name
-	s.indexPath = filepath.Join(l.path, l.indexName(index-1))
+	s.indexPath = filepath.Join(w.path, w.indexName(index-1))
 	s.offset = index - 1
 	s.len = 0
-	l.segments = l.segments[segIndex:]
-	l.firstIndex = index
-	if segIndex == len(l.segments)-1 {
-		return l.resetLastSegment()
+	w.segments = w.segments[segIndex:]
+	w.firstIndex = index
+	if segIndex == len(w.segments)-1 {
+		return w.resetLastSegment()
 	}
 	return nil
 }
 
 // Truncate deletes the dirty entries after index.
-func (l *Log) Truncate(index uint64) (err error) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	if index == l.lastIndex {
+func (w *WAL) Truncate(index uint64) (err error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if index == w.lastIndex {
 		return nil
 	}
-	if err := l.checkIndex(index); err != nil {
+	if err := w.checkIndex(index); err != nil {
 		return err
 	}
-	segIndex := l.searchSegmentIndex(index)
-	s := l.segments[segIndex]
-	if err = l.loadSegment(s); err != nil {
+	segIndex := w.searchSegmentIndex(index)
+	s := w.segments[segIndex]
+	if err = w.loadSegment(s); err != nil {
 		return err
 	}
-	truncateName := filepath.Join(l.path, l.logName(s.offset)+truncateSuffix)
+	truncateName := filepath.Join(w.path, w.logName(s.offset)+truncateSuffix)
 	start, _ := s.readIndex(s.offset + 1)
 	_, end := s.readIndex(index)
 	offset := int(start)
 	size := int(end - start)
-	if err = l.copy(s.logPath, truncateName, offset, size); err != nil {
+	if err = w.copy(s.logPath, truncateName, offset, size); err != nil {
 		return err
 	}
-	for i := segIndex; i < len(l.segments); i++ {
-		l.segments[i].close()
-		if err = os.Remove(l.segments[i].logPath); err != nil {
+	for i := segIndex; i < len(w.segments); i++ {
+		w.segments[i].close()
+		if err = os.Remove(w.segments[i].logPath); err != nil {
 			return err
 		}
-		if err = os.Remove(l.segments[i].indexPath); err != nil {
+		if err = os.Remove(w.segments[i].indexPath); err != nil {
 			return err
 		}
 	}
-	filePath := filepath.Join(l.path, l.logName(s.offset))
+	filePath := filepath.Join(w.path, w.logName(s.offset))
 	if err = os.Rename(truncateName, filePath); err != nil {
 		return err
 	}
 	s.logPath = filePath
-	l.segments = l.segments[:segIndex+1]
-	l.lastIndex = index
-	return l.resetLastSegment()
+	w.segments = w.segments[:segIndex+1]
+	w.lastIndex = index
+	return w.resetLastSegment()
 }
 
-func (l *Log) copy(srcName string, dstName string, offset, size int) (err error) {
+func (w *WAL) copy(srcName string, dstName string, offset, size int) (err error) {
 	var srcFile, tmpFile *os.File
 	if srcFile, err = os.Open(srcName); err != nil {
 		return err
@@ -811,7 +820,7 @@ func (l *Log) copy(srcName string, dstName string, offset, size int) (err error)
 	if m, err = mmap.Open(mmap.Fd(srcFile), 0, mmap.Fsize(srcFile), mmap.READ); err != nil {
 		return err
 	}
-	tmpName := filepath.Join(l.path, "tmp")
+	tmpName := filepath.Join(w.path, tmpfile)
 	if tmpFile, err = os.Create(tmpName); err != nil {
 		return err
 	}
@@ -850,20 +859,20 @@ func (l *Log) copy(srcName string, dstName string, offset, size int) (err error)
 	return nil
 }
 
-func (l *Log) logName(offset uint64) string {
-	return l.segmentName(offset) + l.logSuffix
+func (w *WAL) logName(offset uint64) string {
+	return w.segmentName(offset) + w.logSuffix
 }
 
-func (l *Log) indexName(offset uint64) string {
-	return l.segmentName(offset) + l.indexSuffix
+func (w *WAL) indexName(offset uint64) string {
+	return w.segmentName(offset) + w.indexSuffix
 }
 
-func (l *Log) segmentName(offset uint64) string {
-	return fmt.Sprintf("%0"+fmt.Sprintf("%d", l.nameLength)+"s", strconv.FormatUint(offset, l.base))
+func (w *WAL) segmentName(offset uint64) string {
+	return fmt.Sprintf("%0"+fmt.Sprintf("%d", w.nameLength)+"s", strconv.FormatUint(offset, w.base))
 }
 
-func (l *Log) parseSegmentName(segmentName string) (uint64, error) {
-	offset, err := strconv.ParseUint(segmentName[:l.nameLength], l.base, 64)
+func (w *WAL) parseSegmentName(segmentName string) (uint64, error) {
+	offset, err := strconv.ParseUint(segmentName[:w.nameLength], w.base, 64)
 	if err != nil {
 		return 0, err
 	}

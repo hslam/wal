@@ -12,86 +12,86 @@ func TestWal(t *testing.T) {
 	var data []byte
 	opts := DefaultOptions()
 	opts.SegmentEntries = 3
-	log, err := Open(file, opts)
+	w, err := Open(file, opts)
 	if err != nil {
 		t.Error(err)
 	}
-	log.Write(1, []byte{0, 0, 1})
-	log.FlushAndSync()
-	log.Write(2, []byte{0, 0, 2})
-	log.Flush()
-	log.Sync()
-	log.Write(3, []byte{0, 0, 3})
-	log.FlushAndSync()
-	log.Write(4, []byte{0, 0, 4})
-	log.Write(5, []byte{0, 0, 5})
-	log.Write(6, []byte{0, 0, 6})
-	log.FlushAndSync()
-	data, err = log.Read(1)
+	w.Write(1, []byte{0, 0, 1})
+	w.FlushAndSync()
+	w.Write(2, []byte{0, 0, 2})
+	w.Flush()
+	w.Sync()
+	w.Write(3, []byte{0, 0, 3})
+	w.FlushAndSync()
+	w.Write(4, []byte{0, 0, 4})
+	w.Write(5, []byte{0, 0, 5})
+	w.Write(6, []byte{0, 0, 6})
+	w.FlushAndSync()
+	data, err = w.Read(1)
 	if err != nil {
 		t.Error(err)
 	}
 	if data[2] != 1 {
 		t.Error(data)
 	}
-	err = log.Clean(2)
+	err = w.Clean(2)
 	if err != nil {
 		t.Error(err)
 	}
-	_, err = log.Read(1)
+	_, err = w.Read(1)
 	if err != ErrOutOfRange {
 		t.Error(err)
 	}
-	_, err = log.Read(6)
+	_, err = w.Read(6)
 	if err != nil {
 		t.Error(err)
 	}
-	err = log.Truncate(5)
+	err = w.Truncate(5)
 	if err != nil {
 		t.Error(err)
 	}
-	_, err = log.Read(6)
+	_, err = w.Read(6)
 	if err != ErrOutOfRange {
 		t.Error(err)
 	}
-	log.Close()
-	log, err = Open(file, &Options{SegmentEntries: 3})
+	w.Close()
+	w, err = Open(file, &Options{SegmentEntries: 3})
 	if err != nil {
 		t.Error(err)
 	}
 	var index uint64
-	index, err = log.FirstIndex()
+	index, err = w.FirstIndex()
 	if err != nil {
 		t.Error(err)
 	} else if index != 2 {
 		t.Error(index)
 	}
 
-	index, err = log.LastIndex()
+	index, err = w.LastIndex()
 	if err != nil {
 		t.Error(err)
 	} else if index != 5 {
 		t.Error(index)
 	}
 	var existed bool
-	existed, err = log.IsExist(2)
+	existed, err = w.IsExist(2)
 	if err != nil {
 		t.Error(err)
 	} else if existed != true {
 		t.Error(existed)
 	}
-	data, err = log.Read(2)
+	data, err = w.Read(2)
 	if err != nil {
 		t.Error(err)
 	}
 	if data[2] != 2 {
 		t.Error(data)
 	}
-	err = log.Reset()
+	err = w.Reset()
 	if err != nil {
 		t.Error(err)
 	}
-	err = log.InitFirstIndex(6)
+	err = w.InitFirstIndex(6)
 	if err != nil {
 		t.Error(err)
 	}
@@ -117,69 +117,69 @@ func TestCleanTruncate(t *testing.T) {
 	os.RemoveAll(file)
 	opts := DefaultOptions()
 	opts.SegmentEntries = 3
-	log, err := Open(file, opts)
+	w, err := Open(file, opts)
 	if err != nil {
 		t.Error(err)
 	}
 	for i := uint64(0); i < 12; i++ {
-		log.Write(i, []byte{0, 0, byte(i)})
-		log.FlushAndSync()
+		w.Write(i, []byte{0, 0, byte(i)})
+		w.FlushAndSync()
 	}
-	func(l *Log, index uint64) error {
-		l.mu.Lock()
-		defer l.mu.Unlock()
-		if index == l.firstIndex {
+	func(w *WAL, index uint64) error {
+		w.mu.Lock()
+		defer w.mu.Unlock()
+		if index == w.firstIndex {
 			return nil
 		}
-		if err := l.checkIndex(index); err != nil {
+		if err := w.checkIndex(index); err != nil {
 			return err
 		}
-		segIndex := l.searchSegmentIndex(index)
-		s := l.segments[segIndex]
-		if err = l.loadSegment(s); err != nil {
+		segIndex := w.searchSegmentIndex(index)
+		s := w.segments[segIndex]
+		if err = w.loadSegment(s); err != nil {
 			return err
 		}
-		cleanName := filepath.Join(l.path, l.logName(index-1)+cleanSuffix)
+		cleanName := filepath.Join(w.path, w.logName(index-1)+cleanSuffix)
 		start, _ := s.readIndex(index)
 		_, end := s.readIndex(s.len)
 		offset := int(start)
 		size := int(end - start)
-		if err = l.copy(s.logPath, cleanName, offset, size); err != nil {
+		if err = w.copy(s.logPath, cleanName, offset, size); err != nil {
 			return err
 		}
 		return nil
-	}(log, 2)
-	func(l *Log, index uint64) error {
-		l.mu.Lock()
-		defer l.mu.Unlock()
-		if index == l.lastIndex {
+	}(w, 2)
+	func(w *WAL, index uint64) error {
+		w.mu.Lock()
+		defer w.mu.Unlock()
+		if index == w.lastIndex {
 			return nil
 		}
-		if err := l.checkIndex(index); err != nil {
+		if err := w.checkIndex(index); err != nil {
 			return err
 		}
-		segIndex := l.searchSegmentIndex(index)
-		s := l.segments[segIndex]
-		if err = l.loadSegment(s); err != nil {
+		segIndex := w.searchSegmentIndex(index)
+		s := w.segments[segIndex]
+		if err = w.loadSegment(s); err != nil {
 			return err
 		}
-		truncateName := filepath.Join(l.path, l.logName(s.offset)+truncateSuffix)
+		truncateName := filepath.Join(w.path, w.logName(s.offset)+truncateSuffix)
 		start, _ := s.readIndex(s.offset + 1)
 		_, end := s.readIndex(index)
 		offset := int(start)
 		size := int(end - start)
-		if err = l.copy(s.logPath, truncateName, offset, size); err != nil {
+		if err = w.copy(s.logPath, truncateName, offset, size); err != nil {
 			return err
 		}
 		return nil
-	}(log, 5)
-	log.Close()
+	}(w, 5)
+	w.Close()
 
-	log, err = Open(file, &Options{SegmentEntries: 3})
+	w, err = Open(file, &Options{SegmentEntries: 3})
 	if err != nil {
 		t.Error(err)
 	}
-	log.Close()
+	w.Close()
 	os.RemoveAll(file)
 }
 
@@ -195,11 +195,11 @@ func TestOpen(t *testing.T) {
 	}
 	{
 		os.RemoveAll(file)
-		log, err := Open(file, nil)
+		w, err := Open(file, nil)
 		if err != nil {
 			t.Error(err)
 		}
-		log.Close()
+		w.Close()
 		os.RemoveAll(file)
 	}
 }
@@ -207,51 +207,51 @@ func TestOpen(t *testing.T) {
 func TestClose(t *testing.T) {
 	file := "wal"
 	os.RemoveAll(file)
-	log, err := Open(file, nil)
+	w, err := Open(file, nil)
 	if err != nil {
 		t.Error(err)
 	}
 	for i := uint64(0); i < 12; i++ {
-		log.Write(i, []byte{0, 0, byte(i)})
-		log.FlushAndSync()
+		w.Write(i, []byte{0, 0, byte(i)})
+		w.FlushAndSync()
 	}
-	err = log.Close()
+	err = w.Close()
 	if err != nil {
 		t.Error(err)
 	}
-	err = log.Write(12, []byte{0, 0, byte(12)})
+	err = w.Write(12, []byte{0, 0, byte(12)})
 	if err != ErrClosed {
 		t.Error(err)
 	}
-	err = log.FlushAndSync()
+	err = w.FlushAndSync()
 	if err != ErrClosed {
 		t.Error(err)
 	}
-	err = log.Flush()
+	err = w.Flush()
 	if err != ErrClosed {
 		t.Error(err)
 	}
-	err = log.Sync()
+	err = w.Sync()
 	if err != ErrClosed {
 		t.Error(err)
 	}
-	err = log.Clean(2)
+	err = w.Clean(2)
 	if err != ErrClosed {
 		t.Error(err)
 	}
-	err = log.Truncate(5)
+	err = w.Truncate(5)
 	if err != ErrClosed {
 		t.Error(err)
 	}
-	err = log.Reset()
+	err = w.Reset()
 	if err != ErrClosed {
 		t.Error(err)
 	}
-	_, err = log.FirstIndex()
+	_, err = w.FirstIndex()
 	if err != ErrClosed {
 		t.Error(err)
 	}
-	_, err = log.LastIndex()
+	_, err = w.LastIndex()
 	if err != ErrClosed {
 		t.Error(err)
 	}
@@ -262,15 +262,15 @@ func TestClose(t *testing.T) {
 func BenchmarkWalWrite(b *testing.B) {
 	file := "wal"
 	os.RemoveAll(file)
-	log, err := Open(file, nil)
+	w, err := Open(file, nil)
 	if err != nil {
 		b.Error(err)
 	}
 	var index uint64
 	for i := 0; i < b.N; i++ {
 		index++
-		log.Write(index, []byte{0, 0, 1})
-		log.FlushAndSync()
+		w.Write(index, []byte{0, 0, 1})
+		w.FlushAndSync()
 	}
 	os.RemoveAll(file)
 }
@@ -278,18 +278,18 @@ func BenchmarkWalWrite(b *testing.B) {
 func BenchmarkWalWriteNoSync(b *testing.B) {
 	file := "wal"
 	os.RemoveAll(file)
-	log, err := Open(file, nil)
+	w, err := Open(file, nil)
 	if err != nil {
 		b.Error(err)
 	}
 	var index uint64
 	for i := 0; i < b.N; i++ {
 		index++
-		err = log.Write(index, []byte{0, 0, 1})
+		err = w.Write(index, []byte{0, 0, 1})
 		if err != nil {
 			b.Error(err)
 		}
-		err = log.Flush()
+		err = w.Flush()
 		if err != nil {
 			b.Error(err)
 		}
@@ -300,14 +300,14 @@ func BenchmarkWalWriteNoSync(b *testing.B) {
 func BenchmarkWalRead(b *testing.B) {
 	file := "wal"
 	os.RemoveAll(file)
-	log, err := Open(file, nil)
+	w, err := Open(file, nil)
 	if err != nil {
 		b.Error(err)
 	}
-	log.Write(1, []byte{0, 0, 1})
-	log.FlushAndSync()
+	w.Write(1, []byte{0, 0, 1})
+	w.FlushAndSync()
 	for i := 0; i < b.N; i++ {
-		data, err := log.Read(1)
+		data, err := w.Read(1)
 		if err != nil {
 			b.Error(err)
 		}

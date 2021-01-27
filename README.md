@@ -36,23 +36,23 @@ import (
 func main() {
 	path := "wal"
 	os.RemoveAll(path)
-	log, err := wal.Open(path, &wal.Options{SegmentEntries: 3})
+	w, err := wal.Open(path, &wal.Options{SegmentEntries: 3})
 	if err != nil {
 		panic(err)
 	}
-	defer log.Close()
+	defer w.Close()
 	// Write
-	log.Write(1, []byte("Hello World"))
-	log.FlushAndSync()
+	w.Write(1, []byte("Hello World"))
+	w.FlushAndSync()
 	// Batch Write
-	log.Write(2, []byte("Hello WAL"))
-	log.Write(3, []byte("Hello MH"))
-	log.FlushAndSync()
-	data, _ := log.Read(1)
+	w.Write(2, []byte("Hello WAL"))
+	w.Write(3, []byte("Hello MH"))
+	w.FlushAndSync()
+	data, _ := w.Read(1)
 	fmt.Println(string(data))
-	log.Clean(2)
-	log.Truncate(2)
-	log.Reset()
+	w.Clean(2)
+	w.Truncate(2)
+	w.Reset()
 }
 ```
 
