@@ -798,6 +798,26 @@ func (w *WAL) Truncate(index uint64) (err error) {
 	if err = w.loadSegment(s); err != nil {
 		return err
 	}
+	if len(w.segments) > segIndex+1 {
+		next := w.segments[segIndex+1]
+		if err = w.loadSegment(next); err != nil {
+			return err
+		}
+		if next.offset == index {
+			for i := segIndex + 1; i < len(w.segments); i++ {
+				w.segments[i].close()
+				if err = os.Remove(w.segments[i].logPath); err != nil {
+					return err
+				}
+				if err = os.Remove(w.segments[i].indexPath); err != nil {
+					return err
+				}
+			}
+			w.segments = w.segments[:segIndex+1]
+			w.lastIndex = index
+			return
+		}
+	}
 	truncateName := filepath.Join(w.path, w.logName(s.offset)+truncateSuffix)
 	start, _ := s.readIndex(s.offset + 1)
 	_, end := s.readIndex(index)
