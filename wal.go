@@ -736,6 +736,20 @@ func (w *WAL) Clean(index uint64) (err error) {
 	if err = w.loadSegment(s); err != nil {
 		return err
 	}
+	if s.offset == index-1 {
+		for i := 0; i < segIndex; i++ {
+			w.segments[i].close()
+			if err = os.Remove(w.segments[i].logPath); err != nil {
+				return err
+			}
+			if err = os.Remove(w.segments[i].indexPath); err != nil {
+				return err
+			}
+		}
+		w.segments = w.segments[segIndex:]
+		w.firstIndex = index
+		return nil
+	}
 	cleanName := filepath.Join(w.path, w.logName(index-1)+cleanSuffix)
 	start, _ := s.readIndex(index)
 	_, end := s.readIndex(s.offset + s.len)
