@@ -183,6 +183,22 @@ func TestCleanTruncate(t *testing.T) {
 	os.RemoveAll(file)
 }
 
+func TestCleanTruncateMore(t *testing.T) {
+	file := "wal"
+	os.RemoveAll(file)
+	w, err := Open(file, &Options{SegmentEntries: 3})
+	if err != nil {
+		t.Error(err)
+	}
+	for i := uint64(0); i < 12; i++ {
+		w.Write(i, []byte{0, 0, byte(i)})
+		w.FlushAndSync()
+	}
+	w.Clean(4)
+	w.Truncate(6)
+	os.RemoveAll(file)
+}
+
 func TestOpen(t *testing.T) {
 	file := "wal"
 	{

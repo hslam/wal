@@ -64,7 +64,6 @@ Hello World
 ### License
 This package is licensed under a MIT license (Copyright (c) 2020 Meng Huang)
 
-
 ### Author
 wal was written by Meng Huang.
 
