@@ -318,10 +318,10 @@ func (w *WAL) load() (err error) {
 			} else if len(name) == n+len(w.logSuffix)+len(truncateSuffix) && strings.HasSuffix(name, truncateSuffix) {
 				truncate = true
 				if len(w.segments) > 0 && w.segments[len(w.segments)-1].offset == offset {
-					if err := os.Remove(w.segments[len(w.segments)-1].logPath); err != nil {
+					if err := os.Remove(w.segments[len(w.segments)-1].indexPath); err != nil {
 						return err
 					}
-					if err := os.Remove(w.segments[len(w.segments)-1].indexPath); err != nil {
+					if err := os.Remove(w.segments[len(w.segments)-1].logPath); err != nil {
 						return err
 					}
 					w.segments = w.segments[:len(w.segments)-1]
@@ -739,10 +739,10 @@ func (w *WAL) Clean(index uint64) (err error) {
 	if s.offset == index-1 {
 		for i := 0; i < segIndex; i++ {
 			w.segments[i].close()
-			if err = os.Remove(w.segments[i].logPath); err != nil {
+			if err = os.Remove(w.segments[i].indexPath); err != nil {
 				return err
 			}
-			if err = os.Remove(w.segments[i].indexPath); err != nil {
+			if err = os.Remove(w.segments[i].logPath); err != nil {
 				return err
 			}
 		}
@@ -760,10 +760,10 @@ func (w *WAL) Clean(index uint64) (err error) {
 	}
 	for i := 0; i <= segIndex; i++ {
 		w.segments[i].close()
-		if err = os.Remove(w.segments[i].logPath); err != nil {
+		if err = os.Remove(w.segments[i].indexPath); err != nil {
 			return err
 		}
-		if err = os.Remove(w.segments[i].indexPath); err != nil {
+		if err = os.Remove(w.segments[i].logPath); err != nil {
 			return err
 		}
 	}
@@ -806,10 +806,10 @@ func (w *WAL) Truncate(index uint64) (err error) {
 		if next.offset == index {
 			for i := segIndex + 1; i < len(w.segments); i++ {
 				w.segments[i].close()
-				if err = os.Remove(w.segments[i].logPath); err != nil {
+				if err = os.Remove(w.segments[i].indexPath); err != nil {
 					return err
 				}
-				if err = os.Remove(w.segments[i].indexPath); err != nil {
+				if err = os.Remove(w.segments[i].logPath); err != nil {
 					return err
 				}
 			}
@@ -828,10 +828,10 @@ func (w *WAL) Truncate(index uint64) (err error) {
 	}
 	for i := segIndex; i < len(w.segments); i++ {
 		w.segments[i].close()
-		if err = os.Remove(w.segments[i].logPath); err != nil {
+		if err = os.Remove(w.segments[i].indexPath); err != nil {
 			return err
 		}
-		if err = os.Remove(w.segments[i].indexPath); err != nil {
+		if err = os.Remove(w.segments[i].logPath); err != nil {
 			return err
 		}
 	}
