@@ -1,0 +1,4 @@
+github.com/hslam/code v1.0.1 h1:xl/xAi5Xy68Qsoe0lvsobPeQ7RhBq+tCwbCl857VUrE=
+github.com/hslam/code v1.0.1/go.mod h1:XdrE1+PuRCUDrZogV+seq9n7dFU/gxpDM76ipEo/aUk=
+github.com/hslam/mmap v1.0.0 h1:GSp55lZrPDhctob3yE0SqESBjzgCn9cP4iu4Pmmm+gE=
+github.com/hslam/mmap v1.0.0/go.mod h1:mtuj54WoaupC65QteY9RubXVPkQT86Q/Xj0WPzRefFw=
