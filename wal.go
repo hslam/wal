@@ -153,6 +153,11 @@ func (s *segment) load() error {
 	return nil
 }
 
+func (s *segment) remove() (err error) {
+	os.Remove(s.indexPath)
+	return os.Remove(s.logPath)
+}
+
 func (s *segment) close() (err error) {
 	if s.logFile != nil {
 		if err = s.logFile.Sync(); err != nil {
@@ -304,12 +309,7 @@ func (w *WAL) load() (err error) {
 		} else {
 			if len(name) == n+len(w.logSuffix)+len(cleanSuffix) && strings.HasSuffix(name, cleanSuffix) {
 				for i := 0; i < len(w.segments); i++ {
-					if err := os.Remove(w.segments[i].logPath); err != nil {
-						return err
-					}
-					if err := os.Remove(w.segments[i].indexPath); err != nil {
-						return err
-					}
+					w.segments[i].remove()
 				}
 				w.segments = []*segment{}
 				if err := os.Rename(filePath, filepath.Join(w.path, name[:n+len(w.logSuffix)])); err != nil {
@@ -318,12 +318,7 @@ func (w *WAL) load() (err error) {
 			} else if len(name) == n+len(w.logSuffix)+len(truncateSuffix) && strings.HasSuffix(name, truncateSuffix) {
 				truncate = true
 				if len(w.segments) > 0 && w.segments[len(w.segments)-1].offset == offset {
-					if err := os.Remove(w.segments[len(w.segments)-1].indexPath); err != nil {
-						return err
-					}
-					if err := os.Remove(w.segments[len(w.segments)-1].logPath); err != nil {
-						return err
-					}
+					w.segments[len(w.segments)-1].remove()
 					w.segments = w.segments[:len(w.segments)-1]
 				}
 				if err := os.Rename(filePath, filepath.Join(w.path, name[:n+len(w.logSuffix)])); err != nil {
@@ -739,12 +734,7 @@ func (w *WAL) Clean(index uint64) (err error) {
 	if s.offset == index-1 {
 		for i := 0; i < segIndex; i++ {
 			w.segments[i].close()
-			if err = os.Remove(w.segments[i].indexPath); err != nil {
-				return err
-			}
-			if err = os.Remove(w.segments[i].logPath); err != nil {
-				return err
-			}
+			w.segments[i].remove()
 		}
 		w.segments = w.segments[segIndex:]
 		w.firstIndex = index
@@ -760,12 +750,7 @@ func (w *WAL) Clean(index uint64) (err error) {
 	}
 	for i := 0; i <= segIndex; i++ {
 		w.segments[i].close()
-		if err = os.Remove(w.segments[i].indexPath); err != nil {
-			return err
-		}
-		if err = os.Remove(w.segments[i].logPath); err != nil {
-			return err
-		}
+		w.segments[i].remove()
 	}
 	name := filepath.Join(w.path, w.logName(index-1))
 	if err = os.Rename(cleanName, name); err != nil {
@@ -806,12 +791,7 @@ func (w *WAL) Truncate(index uint64) (err error) {
 		if next.offset == index {
 			for i := segIndex + 1; i < len(w.segments); i++ {
 				w.segments[i].close()
-				if err = os.Remove(w.segments[i].indexPath); err != nil {
-					return err
-				}
-				if err = os.Remove(w.segments[i].logPath); err != nil {
-					return err
-				}
+				w.segments[i].remove()
 			}
 			w.segments = w.segments[:segIndex+1]
 			w.lastIndex = index
@@ -828,12 +808,7 @@ func (w *WAL) Truncate(index uint64) (err error) {
 	}
 	for i := segIndex; i < len(w.segments); i++ {
 		w.segments[i].close()
-		if err = os.Remove(w.segments[i].indexPath); err != nil {
-			return err
-		}
-		if err = os.Remove(w.segments[i].logPath); err != nil {
-			return err
-		}
+		w.segments[i].remove()
 	}
 	filePath := filepath.Join(w.path, w.logName(s.offset))
 	if err = os.Rename(truncateName, filePath); err != nil {
