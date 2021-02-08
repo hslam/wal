@@ -343,6 +343,7 @@ func (w *WAL) load() (err error) {
 		w.firstIndex = w.segments[0].offset + 1
 		return w.resetLastSegment()
 	}
+	w.firstIndex = 1
 	return nil
 }
 
@@ -426,7 +427,10 @@ func (w *WAL) reset() (err error) {
 	if err = w.empty(); err != nil {
 		return err
 	}
-	w.initFirstIndex(1)
+	w.firstIndex = 1
+	w.lastIndex = 0
+	w.lastSegment = nil
+	w.segments = w.segments[:0]
 	return nil
 }
 
@@ -458,27 +462,6 @@ func (w *WAL) empty() (err error) {
 		return nil
 	})
 	return err
-}
-
-// InitFirstIndex sets the write-ahead log first index.
-func (w *WAL) InitFirstIndex(index uint64) error {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	if index == 0 {
-		return ErrZeroIndex
-	}
-	if w.lastIndex > 0 && w.lastIndex-w.firstIndex >= 0 {
-		return ErrNonEmptyLog
-	}
-	w.initFirstIndex(index)
-	return nil
-}
-
-func (w *WAL) initFirstIndex(index uint64) {
-	w.firstIndex = index
-	w.lastIndex = index - 1
-	w.lastSegment = nil
-	w.segments = w.segments[:0]
 }
 
 // Write writes an entry to buffer.
@@ -632,9 +615,6 @@ func (w *WAL) FirstIndex() (index uint64, err error) {
 	defer w.mu.Unlock()
 	if w.closed {
 		return 0, ErrClosed
-	}
-	if w.lastIndex == w.firstIndex-1 {
-		return w.lastIndex, nil
 	}
 	return w.firstIndex, nil
 }

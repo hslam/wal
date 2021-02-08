@@ -91,10 +91,6 @@ func TestWal(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	err = w.InitFirstIndex(6)
-	if err != nil {
-		t.Error(err)
-	}
 	os.RemoveAll(file)
 }
 
