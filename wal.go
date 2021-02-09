@@ -234,12 +234,8 @@ func (opts *Options) check() error {
 	}
 	if opts.Base < 1 {
 		opts.Base = DefaultBase
-	} else {
-		if opts.Base < 2 {
-			return ErrBase
-		} else if opts.Base > 36 {
-			return ErrBase
-		}
+	} else if opts.Base < 2 || opts.Base > 36 {
+		return ErrBase
 	}
 	return nil
 }
