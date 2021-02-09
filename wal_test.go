@@ -197,6 +197,8 @@ func TestCleanTruncateMore(t *testing.T) {
 	}
 	w.Clean(4)
 	w.Truncate(6)
+	w.Clean(5)
+	w.Truncate(5)
 	os.RemoveAll(file)
 }
 

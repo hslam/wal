@@ -723,7 +723,7 @@ func (w *WAL) Clean(index uint64) (err error) {
 	s.len = 0
 	w.segments = w.segments[segIndex:]
 	w.firstIndex = index
-	if segIndex == len(w.segments)-1 {
+	if len(w.segments) == 1 {
 		return w.resetLastSegment()
 	}
 	return nil
