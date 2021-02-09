@@ -17,16 +17,19 @@ func TestWal(t *testing.T) {
 		t.Error(err)
 	}
 	w.Write(1, []byte{0, 0, 1})
-	w.FlushAndSync()
+	w.Flush()
+	w.Sync()
 	w.Write(2, []byte{0, 0, 2})
 	w.Flush()
 	w.Sync()
 	w.Write(3, []byte{0, 0, 3})
-	w.FlushAndSync()
+	w.Flush()
+	w.Sync()
 	w.Write(4, []byte{0, 0, 4})
 	w.Write(5, []byte{0, 0, 5})
 	w.Write(6, []byte{0, 0, 6})
-	w.FlushAndSync()
+	w.Flush()
+	w.Sync()
 	data, err = w.Read(1)
 	if err != nil {
 		t.Error(err)
@@ -119,7 +122,8 @@ func TestCleanTruncate(t *testing.T) {
 	}
 	for i := uint64(0); i < 12; i++ {
 		w.Write(i, []byte{0, 0, byte(i)})
-		w.FlushAndSync()
+		w.Flush()
+		w.Sync()
 	}
 	func(w *WAL, index uint64) error {
 		w.mu.Lock()
@@ -188,7 +192,8 @@ func TestCleanTruncateMore(t *testing.T) {
 	}
 	for i := uint64(0); i < 12; i++ {
 		w.Write(i, []byte{0, 0, byte(i)})
-		w.FlushAndSync()
+		w.Flush()
+		w.Sync()
 	}
 	w.Clean(4)
 	w.Truncate(6)
@@ -225,17 +230,14 @@ func TestClose(t *testing.T) {
 	}
 	for i := uint64(0); i < 12; i++ {
 		w.Write(i, []byte{0, 0, byte(i)})
-		w.FlushAndSync()
+		w.Flush()
+		w.Sync()
 	}
 	err = w.Close()
 	if err != nil {
 		t.Error(err)
 	}
 	err = w.Write(12, []byte{0, 0, byte(12)})
-	if err != ErrClosed {
-		t.Error(err)
-	}
-	err = w.FlushAndSync()
 	if err != ErrClosed {
 		t.Error(err)
 	}
@@ -282,7 +284,8 @@ func BenchmarkWalWrite(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		index++
 		w.Write(index, []byte{0, 0, 1})
-		w.FlushAndSync()
+		w.Flush()
+		w.Sync()
 	}
 	os.RemoveAll(file)
 }
@@ -317,7 +320,8 @@ func BenchmarkWalRead(b *testing.B) {
 		b.Error(err)
 	}
 	w.Write(1, []byte{0, 0, 1})
-	w.FlushAndSync()
+	w.Flush()
+	w.Sync()
 	for i := 0; i < b.N; i++ {
 		data, err := w.Read(1)
 		if err != nil {

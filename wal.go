@@ -500,7 +500,10 @@ func (w *WAL) Write(index uint64, data []byte) (err error) {
 	copy(w.encodeBuffer[n:], data)
 	entryData := w.encodeBuffer[:int(n)+len(data)]
 	if offset+len(w.writeBuffer)+len(entryData) > w.segmentSize || int(index-w.lastSegment.offset) > w.segmentEntries {
-		if err := w.flushAndSync(); err != nil {
+		if err := w.flush(); err != nil {
+			return err
+		}
+		if err := w.sync(); err != nil {
 			return err
 		}
 		if err := w.appendSegment(); err != nil {
@@ -561,36 +564,14 @@ func (w *WAL) sync() error {
 	return nil
 }
 
-// FlushAndSync writes buffered data to file and synchronizes to disk.
-func (w *WAL) FlushAndSync() error {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	return w.flushAndSync()
-}
-
-func (w *WAL) flushAndSync() error {
-	if w.closed {
-		return ErrClosed
-	}
-	if len(w.writeBuffer) > 0 {
-		if _, err := w.lastSegment.logFile.Write(w.writeBuffer); err != nil {
-			return err
-		}
-		w.writeBuffer = w.writeBuffer[:0]
-	}
-	if w.lastSegment != nil {
-		if err := w.lastSegment.logFile.Sync(); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 // Close closes the write-ahead log.
 func (w *WAL) Close() (err error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	if err = w.flushAndSync(); err != nil {
+	if err = w.flush(); err != nil {
+		return err
+	}
+	if err = w.sync(); err != nil {
 		return err
 	}
 	if w.closed {

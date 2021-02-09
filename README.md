@@ -43,11 +43,13 @@ func main() {
 	defer w.Close()
 	// Write
 	w.Write(1, []byte("Hello World"))
-	w.FlushAndSync()
+	w.Flush()
+	w.Sync()
 	// Batch Write
 	w.Write(2, []byte("Hello WAL"))
 	w.Write(3, []byte("Hello MH"))
-	w.FlushAndSync()
+	w.Flush()
+	w.Sync()
 	data, _ := w.Read(1)
 	fmt.Println(string(data))
 	w.Clean(2)
