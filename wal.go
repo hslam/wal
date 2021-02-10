@@ -48,8 +48,6 @@ var (
 	ErrOutOfRange = errors.New("out of range")
 	// ErrZeroIndex is returned because the index must be greater than zero.
 	ErrZeroIndex = errors.New("index can not be zero")
-	// ErrNonEmptyLog is the error returned by InitFirstIndex when the log is non-empty.
-	ErrNonEmptyLog = errors.New("non-empty log")
 	// ErrOutOfOrder is returned when the index is out of order. The index must be equal to LastIndex + 1
 	ErrOutOfOrder = errors.New("out of order")
 	// ErrBase is returned when base < 2 or base > 36
