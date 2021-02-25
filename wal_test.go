@@ -94,6 +94,7 @@ func TestWal(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
+	w.Close()
 	os.RemoveAll(file)
 }
 
@@ -199,6 +200,24 @@ func TestCleanTruncateMore(t *testing.T) {
 	w.Truncate(6)
 	w.Clean(5)
 	w.Truncate(5)
+	w.Close()
+	os.RemoveAll(file)
+}
+
+func TestNoSplitSegment(t *testing.T) {
+	file := "wal"
+	os.RemoveAll(file)
+	w, err := Open(file, &Options{SegmentEntries: 3, NoSplitSegment: true})
+	if err != nil {
+		t.Error(err)
+	}
+	for i := uint64(0); i < 12; i++ {
+		w.Write(i, []byte{0, 0, byte(i)})
+		w.Flush()
+		w.Sync()
+	}
+	w.Clean(8)
+	w.Close()
 	os.RemoveAll(file)
 }
 
