@@ -57,6 +57,7 @@ var (
 // WAL represents a write-ahead log.
 type WAL struct {
 	mu             sync.Mutex
+	wg             sync.WaitGroup
 	path           string
 	segmentSize    int
 	segmentEntries int
@@ -64,6 +65,7 @@ type WAL struct {
 	logSuffix      string
 	indexSuffix    string
 	base           int
+	noSplitSegment bool
 	nameLength     int
 	closed         bool
 	segments       []*segment
@@ -196,6 +198,9 @@ type Options struct {
 	IndexSuffix string
 	// Base is the base.
 	Base int
+	// NoSplitSegment is used by the Clean method. When this option is set,
+	// do not split the segment. Default is false .
+	NoSplitSegment bool
 }
 
 // DefaultOptions returns default options.
@@ -256,6 +261,7 @@ func Open(path string, opts *Options) (w *WAL, err error) {
 		logSuffix:      opts.LogSuffix,
 		indexSuffix:    opts.IndexSuffix,
 		base:           opts.Base,
+		noSplitSegment: opts.NoSplitSegment,
 		nameLength:     len(strconv.FormatUint(1<<64-1, opts.Base)),
 		encodeBuffer:   make([]byte, opts.EncodeBufferSize),
 		writeBuffer:    make([]byte, 0, opts.WriteBufferSize),
@@ -581,6 +587,7 @@ func (w *WAL) close() (err error) {
 			return err
 		}
 	}
+	w.wg.Wait()
 	return
 }
 
@@ -694,6 +701,22 @@ func (w *WAL) Clean(index uint64) (err error) {
 		w.segments = w.segments[segIndex:]
 		w.firstIndex = index
 		return nil
+	}
+	if w.noSplitSegment {
+		if segIndex > 0 {
+			removes := w.segments[:segIndex]
+			w.segments = w.segments[segIndex:]
+			w.firstIndex = w.segments[0].offset + 1
+			w.wg.Add(1)
+			go func(removes []*segment) {
+				for i := 0; i < len(removes); i++ {
+					removes[i].close()
+					removes[i].remove()
+				}
+				w.wg.Done()
+			}(removes)
+		}
+		return
 	}
 	cleanName := filepath.Join(w.path, w.logName(index-1)+cleanSuffix)
 	start, _ := s.readIndex(index)
