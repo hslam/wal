@@ -809,9 +809,6 @@ func (w *WAL) copy(srcName string, dstName string, offset, size int) (err error)
 	if err = tmpFile.Truncate(int64(size)); err != nil {
 		return err
 	}
-	if err = tmpFile.Sync(); err != nil {
-		return err
-	}
 	var tmpMmap []byte
 	if tmpMmap, err = mmap.Open(mmap.Fd(tmpFile), 0, mmap.Fsize(tmpFile), mmap.WRITE); err != nil {
 		return err
