@@ -409,11 +409,9 @@ func (w *WAL) closeLastSegment() (err error) {
 
 func (w *WAL) loadSegment(s *segment) (err error) {
 	if s.len == 0 {
-		if err := s.load(); err != nil {
-			return err
-		}
+		err = s.load()
 	}
-	return nil
+	return err
 }
 
 // Reset discards all entries.
@@ -530,17 +528,16 @@ func (w *WAL) Flush() error {
 	return w.flush()
 }
 
-func (w *WAL) flush() error {
+func (w *WAL) flush() (err error) {
 	if w.closed {
 		return ErrClosed
 	}
 	if len(w.writeBuffer) > 0 {
-		if _, err := w.lastSegment.logFile.Write(w.writeBuffer); err != nil {
-			return err
+		if _, err = w.lastSegment.logFile.Write(w.writeBuffer); err == nil {
+			w.writeBuffer = w.writeBuffer[:0]
 		}
-		w.writeBuffer = w.writeBuffer[:0]
 	}
-	return nil
+	return
 }
 
 // Sync commits the current contents of the file to stable storage.
@@ -552,16 +549,14 @@ func (w *WAL) Sync() error {
 	return w.sync()
 }
 
-func (w *WAL) sync() error {
+func (w *WAL) sync() (err error) {
 	if w.closed {
 		return ErrClosed
 	}
 	if w.lastSegment != nil {
-		if err := w.lastSegment.logFile.Sync(); err != nil {
-			return err
-		}
+		err = w.lastSegment.logFile.Sync()
 	}
-	return nil
+	return
 }
 
 // Close closes the write-ahead log.

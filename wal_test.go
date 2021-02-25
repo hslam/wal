@@ -57,6 +57,9 @@ func TestWal(t *testing.T) {
 	if err != ErrOutOfRange {
 		t.Error(err)
 	}
+	if ok, _ := w.IsExist(6); ok {
+		t.Error()
+	}
 	w.Close()
 	w, err = Open(file, &Options{SegmentEntries: 3})
 	if err != nil {
@@ -221,6 +224,41 @@ func TestNoSplitSegment(t *testing.T) {
 	os.RemoveAll(file)
 }
 
+func TestParseSegmentName(t *testing.T) {
+	file := "wal"
+	os.RemoveAll(file)
+	w, err := Open(file, DefaultOptions())
+	if err != nil {
+		t.Error(err)
+	}
+	if v, err := w.parseSegmentName("00000000000000000001"); v != 1 || err != nil {
+		t.Error()
+	} else if _, err := w.parseSegmentName("0000000000000000000i"); err == nil {
+		t.Error()
+	}
+	os.RemoveAll(file)
+}
+
+func TestTmpFile(t *testing.T) {
+	file := "wal"
+	os.RemoveAll(file)
+	w, err := Open(file, DefaultOptions())
+	if err != nil {
+		t.Error(err)
+	}
+	w.Close()
+	tmpName := filepath.Join(w.path, tmpfile)
+	if tmpFile, err := os.Create(tmpName); err == nil {
+		tmpFile.Close()
+	}
+	w, err = Open(file, DefaultOptions())
+	if err != nil {
+		t.Error(err)
+	}
+	w.Close()
+	os.RemoveAll(file)
+}
+
 func TestOpen(t *testing.T) {
 	file := "wal"
 	{
@@ -290,8 +328,12 @@ func TestClose(t *testing.T) {
 	if err != ErrClosed {
 		t.Error(err)
 	}
+	_, err = w.IsExist(3)
+	if err != ErrClosed {
+		t.Error(err)
+	}
+	w.Close()
 	os.RemoveAll(file)
-
 }
 
 func BenchmarkWalWrite(b *testing.B) {
