@@ -1,6 +1,7 @@
 # wal
 [![PkgGoDev](https://pkg.go.dev/badge/github.com/hslam/wal)](https://pkg.go.dev/github.com/hslam/wal)
 [![Build Status](https://github.com/hslam/wal/workflows/build/badge.svg)](https://github.com/hslam/wal/actions)
+[![codecov](https://codecov.io/gh/hslam/wal/branch/master/graph/badge.svg)](https://codecov.io/gh/hslam/wal)
 [![Go Report Card](https://goreportcard.com/badge/github.com/hslam/wal?v=7e100)](https://goreportcard.com/report/github.com/hslam/wal)
 [![LICENSE](https://img.shields.io/github/license/hslam/wal.svg?style=flat-square)](https://github.com/hslam/wal/blob/master/LICENSE)
 
