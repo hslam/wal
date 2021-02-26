@@ -422,17 +422,6 @@ func (w *WAL) Reset() error {
 }
 
 func (w *WAL) reset() (err error) {
-	if err = w.empty(); err != nil {
-		return err
-	}
-	w.firstIndex = 1
-	w.lastIndex = 0
-	w.lastSegment = nil
-	w.segments = w.segments[:0]
-	return nil
-}
-
-func (w *WAL) empty() (err error) {
 	if w.closed {
 		return ErrClosed
 	}
@@ -459,6 +448,12 @@ func (w *WAL) empty() (err error) {
 		}
 		return nil
 	})
+	if err == nil {
+		w.firstIndex = 1
+		w.lastIndex = 0
+		w.lastSegment = nil
+		w.segments = w.segments[:0]
+	}
 	return err
 }
 
