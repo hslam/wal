@@ -66,6 +66,7 @@ type WAL struct {
 	indexSuffix    string
 	base           int
 	noSplitSegment bool
+	asyncRemove    bool
 	nameLength     int
 	closed         bool
 	segments       []*segment
@@ -201,6 +202,9 @@ type Options struct {
 	// NoSplitSegment is used by the Clean method. When this option is set,
 	// do not split the segment. Default is false .
 	NoSplitSegment bool
+	// AsyncRemove is used by the Clean method. When this option is set,
+	// remove the old segment asynchronously. Default is false .
+	AsyncRemove bool
 }
 
 // DefaultOptions returns default options.
@@ -262,6 +266,7 @@ func Open(path string, opts *Options) (w *WAL, err error) {
 		indexSuffix:    opts.IndexSuffix,
 		base:           opts.Base,
 		noSplitSegment: opts.NoSplitSegment,
+		asyncRemove:    opts.AsyncRemove,
 		nameLength:     len(strconv.FormatUint(1<<64-1, opts.Base)),
 		encodeBuffer:   make([]byte, opts.EncodeBufferSize),
 		writeBuffer:    make([]byte, 0, opts.WriteBufferSize),
@@ -683,28 +688,26 @@ func (w *WAL) Clean(index uint64) (err error) {
 	if err = w.loadSegment(s); err != nil {
 		return err
 	}
-	if s.offset == index-1 {
-		for i := 0; i < segIndex; i++ {
-			w.segments[i].close()
-			w.segments[i].remove()
-		}
-		w.segments = w.segments[segIndex:]
-		w.firstIndex = index
-		return nil
-	}
-	if w.noSplitSegment {
+	if w.noSplitSegment || s.offset == index-1 {
 		if segIndex > 0 {
 			removes := w.segments[:segIndex]
 			w.segments = w.segments[segIndex:]
 			w.firstIndex = w.segments[0].offset + 1
-			w.wg.Add(1)
-			go func(removes []*segment) {
+			if w.asyncRemove {
+				w.wg.Add(1)
+				go func(removes []*segment) {
+					for i := 0; i < len(removes); i++ {
+						removes[i].close()
+						removes[i].remove()
+					}
+					w.wg.Done()
+				}(removes)
+			} else {
 				for i := 0; i < len(removes); i++ {
 					removes[i].close()
 					removes[i].remove()
 				}
-				w.wg.Done()
-			}(removes)
+			}
 		}
 		return
 	}
