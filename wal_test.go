@@ -130,8 +130,6 @@ func TestCleanTruncate(t *testing.T) {
 		w.Sync()
 	}
 	func(w *WAL, index uint64) error {
-		w.mu.Lock()
-		defer w.mu.Unlock()
 		if index == w.firstIndex {
 			return nil
 		}
@@ -154,8 +152,6 @@ func TestCleanTruncate(t *testing.T) {
 		return nil
 	}(w, 2)
 	func(w *WAL, index uint64) error {
-		w.mu.Lock()
-		defer w.mu.Unlock()
 		if index == w.lastIndex {
 			return nil
 		}

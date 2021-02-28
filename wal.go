@@ -56,7 +56,6 @@ var (
 
 // WAL represents a write-ahead log.
 type WAL struct {
-	mu             sync.Mutex
 	wg             sync.WaitGroup
 	path           string
 	segmentSize    int
@@ -420,13 +419,7 @@ func (w *WAL) loadSegment(s *segment) (err error) {
 }
 
 // Reset discards all entries.
-func (w *WAL) Reset() error {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	return w.reset()
-}
-
-func (w *WAL) reset() (err error) {
+func (w *WAL) Reset() (err error) {
 	if w.closed {
 		return ErrClosed
 	}
@@ -464,8 +457,6 @@ func (w *WAL) reset() (err error) {
 
 // Write writes an entry to buffer.
 func (w *WAL) Write(index uint64, data []byte) (err error) {
-	w.mu.Lock()
-	defer w.mu.Unlock()
 	if w.closed {
 		return ErrClosed
 	}
@@ -523,8 +514,6 @@ func (w *WAL) Write(index uint64, data []byte) (err error) {
 
 // Flush writes buffered data to file.
 func (w *WAL) Flush() error {
-	w.mu.Lock()
-	defer w.mu.Unlock()
 	return w.flush()
 }
 
@@ -544,8 +533,6 @@ func (w *WAL) flush() (err error) {
 // Typically, this means flushing the file system's in-memory copy
 // of recently written data to disk.
 func (w *WAL) Sync() error {
-	w.mu.Lock()
-	defer w.mu.Unlock()
 	return w.sync()
 }
 
@@ -561,8 +548,6 @@ func (w *WAL) sync() (err error) {
 
 // Close closes the write-ahead log.
 func (w *WAL) Close() (err error) {
-	w.mu.Lock()
-	defer w.mu.Unlock()
 	if err = w.flush(); err != nil {
 		return err
 	}
@@ -588,8 +573,6 @@ func (w *WAL) close() (err error) {
 
 // FirstIndex returns the write-ahead log first index.
 func (w *WAL) FirstIndex() (index uint64, err error) {
-	w.mu.Lock()
-	defer w.mu.Unlock()
 	if w.closed {
 		return 0, ErrClosed
 	}
@@ -598,8 +581,6 @@ func (w *WAL) FirstIndex() (index uint64, err error) {
 
 // LastIndex returns the write-ahead log last index.
 func (w *WAL) LastIndex() (index uint64, err error) {
-	w.mu.Lock()
-	defer w.mu.Unlock()
 	if w.closed {
 		return 0, ErrClosed
 	}
@@ -622,8 +603,6 @@ func (w *WAL) searchSegmentIndex(index uint64) int {
 
 // IsExist returns true when the index is in range.
 func (w *WAL) IsExist(index uint64) (bool, error) {
-	w.mu.Lock()
-	defer w.mu.Unlock()
 	if err := w.checkIndex(index); err != nil {
 		if err == ErrClosed {
 			return false, err
@@ -645,8 +624,6 @@ func (w *WAL) checkIndex(index uint64) error {
 
 // Read returns an entry by index.
 func (w *WAL) Read(index uint64) (data []byte, err error) {
-	w.mu.Lock()
-	defer w.mu.Unlock()
 	if err := w.checkIndex(index); err != nil {
 		return nil, err
 	}
@@ -675,8 +652,6 @@ func (w *WAL) Read(index uint64) (data []byte, err error) {
 
 // Clean cleans up the old entries before index.
 func (w *WAL) Clean(index uint64) (err error) {
-	w.mu.Lock()
-	defer w.mu.Unlock()
 	if index == w.firstIndex {
 		return nil
 	}
@@ -741,8 +716,6 @@ func (w *WAL) Clean(index uint64) (err error) {
 
 // Truncate deletes the dirty entries after index.
 func (w *WAL) Truncate(index uint64) (err error) {
-	w.mu.Lock()
-	defer w.mu.Unlock()
 	if index == w.lastIndex {
 		return nil
 	}
