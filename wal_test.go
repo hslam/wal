@@ -224,27 +224,6 @@ func TestNoSplitSegment(t *testing.T) {
 	os.RemoveAll(file)
 }
 
-func TestAsyncRemove(t *testing.T) {
-	file := "wal"
-	os.RemoveAll(file)
-	w, err := Open(file, &Options{SegmentEntries: 3, AsyncRemove: true})
-	if err != nil {
-		t.Error(err)
-	}
-	for i := uint64(0); i < 12; i++ {
-		w.Write(i, []byte{0, 0, byte(i)})
-		w.Flush()
-		w.Sync()
-	}
-	w.Clean(7)
-	_, err = w.Read(1)
-	if err != ErrOutOfRange {
-		t.Error(err)
-	}
-	w.Close()
-	os.RemoveAll(file)
-}
-
 func TestParseSegmentName(t *testing.T) {
 	file := "wal"
 	os.RemoveAll(file)
